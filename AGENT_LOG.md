@@ -22,3 +22,10 @@ One entry per agent session, newest at the bottom. Be honest: what went wrong is
 - Checkpoints: captured actual initialize, tools/list, successful lecture lookup, and invalid lecture replies from the server.
 - Went wrong: none.
 - Changed by hand: added the verified JSON-RPC exchange to `mcp-server/README.md` and updated this log.
+
+## 2026-10-22 · Exercise 1 acceptance review
+- Goal: check the Exercise 1 submission against the official assistant checklist.
+- Delegated: none
+- Checkpoints: reviewed the course checklist; the MCP self-check passed 12/12 checks.
+- Went wrong: the README had the wrong lecture range and omitted the no-reply initialized notification from its transcript.
+- Changed by hand: corrected the lecture range, completed the transcript, and recorded this review.

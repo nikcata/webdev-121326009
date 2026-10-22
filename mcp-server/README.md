@@ -12,7 +12,7 @@ Your hand-written MCP server lives in this folder. Write it in any language you 
 
 ## The two tools
 
-1. **`find_lecture`**: everyone writes this one. Input: `number` (1 to 10). It returns the title and topics of that lecture from `lectures.json`. A number outside the range is not a crash and not a protocol error: it is a result with `isError: true` and a readable message.
+1. **`find_lecture`**: everyone writes this one. Input: `number` (1 to 12). It returns the title and topics of that lecture from `lectures.json`. A number outside the range is not a crash and not a protocol error: it is a result with `isError: true` and a readable message.
 2. **One of your own**: anything useful that reads local data. Give it a description a model can choose by. Every tool needs one: the self-check applies the same rule to all of them, because a description is the only thing a model reads when it decides what to call.
 
 ## Where this goes next
@@ -44,11 +44,12 @@ I changed the description of `find_lecture` from a detailed, task-oriented summa
 npm run --silent mcp
 
 ## Session transcript
-The following JSON-RPC exchanges were sent to the server in order; each line below is the server's reply.
+The following JSON-RPC messages were exchanged in order. The server sends no reply to `notifications/initialized`.
 
 ```jsonl
 {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"readme-transcript","version":"1.0.0"}}}
 {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-11-25","capabilities":{"tools":{}},"serverInfo":{"name":"lectures","version":"0.1.0"}}}
+{"jsonrpc":"2.0","method":"notifications/initialized"}
 {"jsonrpc":"2.0","id":2,"method":"tools/list"}
 {"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"find_lecture","description":"Looks up lecture information by number in the course data.","inputSchema":{"type":"object","properties":{"number":{"type":"integer","description":"Lecture number, 1 to 12"}},"required":["number"]}},{"name":"list_messages","description":"Reads the course messages file and returns its contents as text. Use it when you need to inspect the example JSON-RPC messages provided with the exercise.","inputSchema":{"type":"object","properties":{},"required":[]}}]}}
 {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"find_lecture","arguments":{"number":7}}}

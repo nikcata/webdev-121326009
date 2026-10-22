@@ -6,6 +6,8 @@ One row per agent session. In Gemini CLI, type `/stats` before you quit and copy
 |---|---|---:|---:|---:|---:|
 | 2026-10-22 | Gemini CLI |  |  |  |  |
 | 2026-10-22 | Copilot |  |  |  |  |
+| 2026-10-22 | Copilot |  |  |  |  |
+| 2026-10-22 | Copilot |  |  |  |  |
 
 > Note: the successful live Gemini session showed the MCP tool was chosen and the lecture answer came back correctly from the local server, but the provider still rejected headless token accounting in this environment with "API key not valid". The token totals therefore remain unverified here.
 > Copilot usage credits were not available in the session context, so that row is left blank rather than estimated.
