@@ -44,3 +44,8 @@ It prints one line per check. Fix the failures yourself: the agent may explain a
 
 ## The description experiment
 <!-- Three sentences: what you changed in the description, whether the model chose the tool differently, and why you think so. -->
+## How to start it
+
+npm run --silent mcp
+
+## Session transcript
