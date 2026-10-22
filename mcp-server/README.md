@@ -36,16 +36,23 @@ node mcp-server/check.mjs -- npm run --silent mcp
 
 It prints one line per check. Fix the failures yourself: the agent may explain a message or review your handler, but it must not write the protocol code for you.
 
-## How to start it
-<!-- The exact command, so the lecturer can run your server too. -->
-
-## Session transcript
-<!-- Paste one full session: initialize, the reply, tools/list, one good tools/call, one that fails. -->
-
 ## The description experiment
-<!-- Three sentences: what you changed in the description, whether the model chose the tool differently, and why you think so. -->
+I changed the description of `find_lecture` from a detailed, task-oriented summary to a shorter and more general phrase. The model still chose the same tool when I asked “What does lecture 7 cover?”, which shows the request was specific enough to match the lecture lookup intent. I think the model is matching on the key nouns and task meaning, so the shorter description still clearly points to the lecture tool.
+
 ## How to start it
 
 npm run --silent mcp
 
 ## Session transcript
+The following JSON-RPC exchanges were sent to the server in order; each line below is the server's reply.
+
+```jsonl
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"readme-transcript","version":"1.0.0"}}}
+{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-11-25","capabilities":{"tools":{}},"serverInfo":{"name":"lectures","version":"0.1.0"}}}
+{"jsonrpc":"2.0","id":2,"method":"tools/list"}
+{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"find_lecture","description":"Looks up lecture information by number in the course data.","inputSchema":{"type":"object","properties":{"number":{"type":"integer","description":"Lecture number, 1 to 12"}},"required":["number"]}},{"name":"list_messages","description":"Reads the course messages file and returns its contents as text. Use it when you need to inspect the example JSON-RPC messages provided with the exercise.","inputSchema":{"type":"object","properties":{},"required":[]}}]}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"find_lecture","arguments":{"number":7}}}
+{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"Lecture 7: Evaluating output. Topics: Non-determinism, false positives, when to trust it"}],"isError":false}}
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"find_lecture","arguments":{"number":99}}}
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"There is no lecture 99. The course has lectures 1 to 12."}],"isError":true}}
+```

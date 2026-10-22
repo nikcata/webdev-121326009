@@ -54,7 +54,7 @@ function handle(msg) {
           {
             name: 'find_lecture',
             description:
-              'Returns the title and topics of a lecture by number. Use it to find out what a course lecture covers. Returns the lecture details as text.',
+              'Looks up lecture information by number in the course data.',
             inputSchema: {
               type: 'object',
               properties: {

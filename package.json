@@ -1,0 +1,8 @@
+{
+  "name": "webdev-121326009",
+  "private": true,
+  "scripts": {
+    "mcp": "node mcp-server/server.js",
+    "test": "node mcp-server/check.mjs -- npm run --silent mcp"
+  }
+}
