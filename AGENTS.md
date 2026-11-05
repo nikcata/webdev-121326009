@@ -4,18 +4,19 @@ Read this file at the start of every session. Keep it short and correct; update 
 
 ## Project
 <!-- One or two sentences: what the app does and for whom. Link SPEC.md. -->
-See `SPEC.md` for goals, non-goals and acceptance criteria.
+This project will let university students find available laboratory slots, reserve a seat, and manage their bookings. See [SPEC.md](SPEC.md) for goals, non-goals and acceptance criteria.
 
 ## Commands
 <!-- How to install, run, test. Keep these exact and working. -->
-- Install: 
-- Run: 
-- Test: 
+- Install: `npm install`
+- Run: `npm start` (serves the app at `http://localhost:3000`)
+- Test: `npm test`
 - Coverage: 
-- MCP server: 
+- MCP server: `npm run mcp`
 
 ## Conventions
 <!-- Folder layout, naming, where business rules live, how errors are returned to the client. -->
+HTTP routes live in `src/routes/`, business rules in `src/services/`, and SQL in `src/data/`; browser files live in `public/`, with tests in `test/`. MCP tools call the same services as HTTP routes, and tests name the acceptance-criterion ID they cover.
 
 ## Layers
 <!-- Fill in the file or folder for each layer. -->

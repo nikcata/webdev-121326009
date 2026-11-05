@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Lab booking</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/">Lab booking</a>
+      <nav id="account-nav" aria-label="Account"></nav>
+    </header>
+    <main>
+      <section id="auth-panel" class="panel" aria-labelledby="auth-title">
+        <h1 id="auth-title">Sign in to book a lab</h1>
+        <p id="auth-description">Create an account or sign in to view lab availability.</p>
+        <form id="auth-form">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" autocomplete="email" required>
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" minlength="8" required>
+          <button id="submit-auth" type="submit">Sign in</button>
+        </form>
+        <button id="toggle-auth" class="text-button" type="button">Create an account</button>
+        <p id="auth-message" class="message" role="status" aria-live="polite"></p>
+      </section>
+
+      <section id="availability" hidden aria-labelledby="availability-title">
+        <h1 id="availability-title">Available lab slots</h1>
+        <p>Browse upcoming sessions and the number of seats available.</p>
+        <p id="list-message" class="message" role="status" aria-live="polite"></p>
+        <ul id="slot-list" class="slot-list"></ul>
+      </section>
+    </main>
+  </body>
+</html>

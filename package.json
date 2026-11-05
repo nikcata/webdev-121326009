@@ -2,7 +2,13 @@
   "name": "webdev-121326009",
   "private": true,
   "scripts": {
+    "start": "node src/app.js",
     "mcp": "node mcp-server/server.js",
-    "test": "node mcp-server/check.mjs -- npm run --silent mcp"
+    "test": "node --test test/*.test.js && node mcp-server/check.mjs -- npm run --silent mcp"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^13.0.3",
+    "express": "^5.3.0"
   }
 }
