@@ -37,3 +37,8 @@ One entry per agent session, newest at the bottom. Be honest: what went wrong is
 - Checkpoints: `npm test` passed all 3 slice tests and all 12 MCP checks; `node checks/ex2.mjs` passed 32/32 checks; live smoke checks returned 200 for `/`, 401 for unauthenticated `/api/lab-slots`, `/api/me`, and `/my-bookings`.
 - Went wrong: the first bookings screen can only show an empty state because booking creation belongs to a later slice. The first implementation also left the list API public, contrary to the run-through's expected sign-in gate.
 - Changed by hand: added the Express app, data and service layers, responsive sign-in/availability UI, SQLite initialization, and tests named for AC-9, AC-10, and AC-11. After user approval, protected the availability API and extended AC-10's test.
+
+## 2026-11-08 · Exercise 3 plan
+Goal: a written plan for the booking feature, no code
+Autonomy: the agent works alone within one step of the plan; I read the diff before every commit
+Checkpoints: plan review before any further code, `npm test` green before each commit, a permission prompt for everything in "Always ask before"

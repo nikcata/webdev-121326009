@@ -34,8 +34,21 @@ function createDatabase(filename = path.join(process.cwd(), 'data', 'lab-booking
       lab_id INTEGER NOT NULL REFERENCES labs(id),
       starts_at TEXT NOT NULL,
       capacity INTEGER NOT NULL CHECK (capacity > 0),
+      reserved_seats INTEGER NOT NULL DEFAULT 0 CHECK (reserved_seats >= 0 AND reserved_seats <= capacity),
       UNIQUE (lab_id, starts_at)
     );
+
+    CREATE TABLE IF NOT EXISTS bookings (
+      id INTEGER PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      slot_id INTEGER NOT NULL REFERENCES lab_slots(id) ON DELETE CASCADE,
+      status TEXT NOT NULL CHECK (status IN ('active', 'cancelled')) DEFAULT 'active',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_active_bookings
+    ON bookings (user_id, slot_id)
+    WHERE status = 'active';
   `);
 
   const insertLab = db.prepare('INSERT OR IGNORE INTO labs (name) VALUES (?)');

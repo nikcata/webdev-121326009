@@ -4,16 +4,49 @@ function createLabSlotRepository(db) {
       lab_slots.id,
       labs.name AS lab_name,
       lab_slots.starts_at,
-      lab_slots.capacity AS available_seats
+      (lab_slots.capacity - lab_slots.reserved_seats) AS available_seats
     FROM lab_slots
     JOIN labs ON labs.id = lab_slots.lab_id
     WHERE lab_slots.starts_at > ?
     ORDER BY lab_slots.starts_at, labs.name
   `);
 
+  const findById = db.prepare(`
+    SELECT
+      lab_slots.id,
+      labs.name AS lab_name,
+      lab_slots.starts_at,
+      lab_slots.capacity,
+      lab_slots.reserved_seats
+    FROM lab_slots
+    JOIN labs ON labs.id = lab_slots.lab_id
+    WHERE lab_slots.id = ?
+  `);
+
+  const incrementReservedSeats = db.prepare(`
+    UPDATE lab_slots
+    SET reserved_seats = reserved_seats + 1
+    WHERE id = ? AND reserved_seats < capacity
+  `);
+
+  const decrementReservedSeats = db.prepare(`
+    UPDATE lab_slots
+    SET reserved_seats = reserved_seats - 1
+    WHERE id = ? AND reserved_seats > 0
+  `);
+
   return {
     listUpcoming(now) {
       return listUpcoming.all(now);
+    },
+    findById(id) {
+      return findById.get(id);
+    },
+    incrementReservedSeats(id) {
+      return incrementReservedSeats.run(id).changes > 0;
+    },
+    decrementReservedSeats(id) {
+      return decrementReservedSeats.run(id).changes > 0;
     }
   };
 }

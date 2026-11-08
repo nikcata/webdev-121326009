@@ -2,9 +2,11 @@ const path = require('node:path');
 const express = require('express');
 const { createDatabase } = require('./data/database');
 const { createLabSlotRepository } = require('./data/lab-slots');
+const { createBookingRepository } = require('./data/bookings');
 const { createSessionRepository } = require('./data/sessions');
 const { createUserRepository } = require('./data/users');
 const { createAuthService } = require('./services/auth');
+const { createLabService } = require('./services/labs');
 const { createAuthRouter, COOKIE_NAME } = require('./routes/auth');
 const { createLabRouter } = require('./routes/labs');
 
@@ -14,6 +16,8 @@ function createApp({ db = createDatabase() } = {}) {
   const sessions = createSessionRepository(db);
   const authService = createAuthService({ users, sessions });
   const labSlots = createLabSlotRepository(db);
+  const bookings = createBookingRepository(db);
+  const labService = createLabService(db, labSlots, bookings);
   const { router: authRouter, cookieToken } = createAuthRouter(authService);
   const publicDirectory = path.join(__dirname, '..', 'public');
 
@@ -31,7 +35,7 @@ function createApp({ db = createDatabase() } = {}) {
     next();
   }
 
-  app.use('/api', createLabRouter(labSlots, requireUser));
+  app.use('/api', createLabRouter({ labSlots, labService, requireUser }));
 
   app.get('/api/me', requireUser, (req, res) => {
     res.json({ user: req.user });

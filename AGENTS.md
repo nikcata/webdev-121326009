@@ -56,6 +56,8 @@ that talks to the database directly is a second, unguarded way into your data: n
 - pushing, tagging or changing CI
 - anything that touches secrets or `.env`
 - changing an authentication or authorization rule
+- applying a database migration to a shared or persistent database
+- changing an agreed booking or cancellation rule or its API status code
 - adding, renaming or removing an MCP tool
 - changing a coverage threshold
 - sending user data to a third-party model

@@ -73,11 +73,25 @@ Responsive HTML, CSS, and vanilla JavaScript served by Express. Screens: sign-in
 - [AC-10] A registered student signs in with their correct credentials; the sign-in form is replaced by the lab availability list on the same page, and they can open their own bookings page.
 - [AC-11] A registered student enters a wrong password, sees a sign-in error, and remains unauthenticated on the sign-in page.
 
+### Slice 2: reserve and cancel a lab slot
+- [AC-12] A signed-in student reserves a future lab slot with an available seat, sees a confirmation naming the lab and start time, and the database records one active booking and increments the slot's reserved-seat count by one.
+- [AC-13] A student trying to reserve a full slot is refused with 409; no booking is added and the reserved-seat count does not exceed capacity.
+- [AC-14] A student trying to reserve the same slot twice is refused with 409; only one active booking for that student and slot remains in `bookings`.
+- [AC-15] A student trying to reserve a slot that does not exist is refused with 404; no booking is added and no seat count changes.
+- [AC-16] A student trying to reserve a slot that has already started is refused with 422; no booking is added and no seat count changes.
+- [AC-17] A signed-in student trying to cancel another student's booking is refused with 403, and a signed-out request is refused with 401; the booking remains active and the reserved-seat count is unchanged.
+
 ## Traceability
 <!-- Filled in from Exercise 3 onward: each AC id, and the test that names it. -->
 | Criterion | Test |
 | --- | --- |
 | AC-1 |  |
+| AC-12 |  |
+| AC-13 |  |
+| AC-14 |  |
+| AC-15 |  |
+| AC-16 |  |
+| AC-17 |  |
 
 ## Spec vs result
 <!-- After the agent builds the slice: which criteria passed, which it missed or reinterpreted, and what you changed in this spec because of it. -->
