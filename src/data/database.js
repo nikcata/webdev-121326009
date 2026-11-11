@@ -2,7 +2,33 @@ const fs = require('node:fs');
 const path = require('node:path');
 const Database = require('better-sqlite3');
 
-function createDatabase(filename = path.join(process.cwd(), 'data', 'lab-booking.sqlite')) {
+function applyMigrations(db, directory = path.join(__dirname, '..', '..', 'migrations')) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      filename TEXT PRIMARY KEY,
+      applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  const migrationFiles = fs.readdirSync(directory)
+    .filter((filename) => /^\d+_.+\.sql$/.test(filename))
+    .sort();
+  const isApplied = db.prepare('SELECT 1 FROM schema_migrations WHERE filename = ?');
+  const markApplied = db.prepare('INSERT INTO schema_migrations (filename) VALUES (?)');
+
+  for (const filename of migrationFiles) {
+    if (isApplied.get(filename)) continue;
+    const sql = fs.readFileSync(path.join(directory, filename), 'utf8');
+    db.transaction(() => {
+      db.exec(sql);
+      markApplied.run(filename);
+    })();
+  }
+}
+
+function createDatabase(
+  filename = process.env.LAB_BOOKING_DB ?? path.join(process.cwd(), 'data', 'lab-booking.sqlite')
+) {
   if (filename !== ':memory:') {
     fs.mkdirSync(path.dirname(path.resolve(filename)), { recursive: true });
   }
@@ -38,18 +64,8 @@ function createDatabase(filename = path.join(process.cwd(), 'data', 'lab-booking
       UNIQUE (lab_id, starts_at)
     );
 
-    CREATE TABLE IF NOT EXISTS bookings (
-      id INTEGER PRIMARY KEY,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      slot_id INTEGER NOT NULL REFERENCES lab_slots(id) ON DELETE CASCADE,
-      status TEXT NOT NULL CHECK (status IN ('active', 'cancelled')) DEFAULT 'active',
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_active_bookings
-    ON bookings (user_id, slot_id)
-    WHERE status = 'active';
   `);
+  applyMigrations(db);
 
   const insertLab = db.prepare('INSERT OR IGNORE INTO labs (name) VALUES (?)');
   const findLab = db.prepare('SELECT id FROM labs WHERE name = ?');
@@ -76,4 +92,4 @@ function createDatabase(filename = path.join(process.cwd(), 'data', 'lab-booking
   return db;
 }
 
-module.exports = { createDatabase };
+module.exports = { applyMigrations, createDatabase };
