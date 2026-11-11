@@ -1,6 +1,6 @@
-# Exercise 1 · MCP server
+# Lab booking · MCP server
 
-Your hand-written MCP server lives in this folder. Write it in any language you like. The full task is on the exercise page; this file is the short version plus your notes.
+The hand-written MCP server began in Exercise 1 and now exposes the lab-booking services as well as the original course-data tools.
 
 ## What is already here
 
@@ -10,16 +10,21 @@ Your hand-written MCP server lives in this folder. Write it in any language you 
 | `messages.jsonl` | The messages a client sends, in order, with what your server must answer. |
 | `check.mjs` | The self-check. It starts your server, sends those messages and tells you what is wrong. |
 
-## The two tools
+## Course-data tools
 
 1. **`find_lecture`**: everyone writes this one. Input: `number` (1 to 12). It returns the title and topics of that lecture from `lectures.json`. A number outside the range is not a crash and not a protocol error: it is a result with `isError: true` and a readable message.
 2. **One of your own**: anything useful that reads local data. Give it a description a model can choose by. Every tool needs one: the self-check applies the same rule to all of them, because a description is the only thing a model reads when it decides what to call.
 
-## Where this goes next
+## Lab booking tools
 
-Do not throw this folder away after Exercise 1. From Exercise 3 it becomes **your project's own MCP server**: the same protocol loop, with the tools rewired from `lectures.json` to your real data. Its tools call exactly the same service functions your HTTP routes call, so a tool obeys the same rules an API request does, and it carries a user (the `MCP_TOKEN` in `.env.example`) so it may do what that person may do and no more.
+- `list_lab_slots` uses the same slot-listing service as the HTTP API and can filter by lab name and date.
+- `book_lab_slot`, `list_my_bookings`, and `cancel_my_booking` use the same booking service as the HTTP API.
+- Authenticated calls run on behalf of the session in `MCP_TOKEN`. Set this environment variable in the MCP process configuration; do not put the token in tool arguments, source files, or logs. Without a valid token, booking and personal-booking tools return an authorization error.
+- The MCP process uses the same SQLite database as the app by default. `LAB_BOOKING_DB` can point both processes at the same database. The protocol self-check sets it to `:memory:` so tests never migrate the persistent local database.
 
-That is the whole design, and it is one sentence: **one set of rules, two front doors.** An MCP tool that writes its own database query is a second way into your data with none of your rules on it, and Exercise 5 is very good at finding those.
+The tools call exactly the same service functions as HTTP, so they enforce the same booking, capacity, and ownership rules. MCP source must not issue its own database queries.
+
+That is the whole design, and it is one sentence: **one set of rules, two front doors.**
 
 Add an `mcp` script to `package.json` (`"mcp": "node mcp-server/server.js"`) so your agent, CI and the lecturer can all start the server the same way.
 
@@ -43,8 +48,10 @@ I changed the description of `find_lecture` from a detailed, task-oriented summa
 
 npm run --silent mcp
 
+For authenticated booking tools, configure `MCP_TOKEN` in the MCP server process environment with a valid lab-booking session token. The token is not a tool argument and must not be committed or logged.
+
 ## Session transcript
-The following JSON-RPC messages were exchanged in order. The server sends no reply to `notifications/initialized`.
+The following JSON-RPC messages record the original Exercise 1 exchange, before the lab-booking tools were added. The server sends no reply to `notifications/initialized`.
 
 ```jsonl
 {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"readme-transcript","version":"1.0.0"}}}

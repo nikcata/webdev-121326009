@@ -24,7 +24,10 @@ const steps = readFileSync(join(here, 'messages.jsonl'), 'utf8')
   .filter((line) => line.trim() && !line.startsWith('//'))
   .map((line) => JSON.parse(line));
 
-const child = spawn(command[0], command.slice(1), { stdio: ['pipe', 'pipe', 'pipe'] });
+const child = spawn(command[0], command.slice(1), {
+  stdio: ['pipe', 'pipe', 'pipe'],
+  env: { ...process.env, LAB_BOOKING_DB: ':memory:' }
+});
 child.on('error', (error) => {
   console.error(`Could not start your server: ${error.message}`);
   process.exit(2);

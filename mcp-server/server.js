@@ -2,6 +2,8 @@
 const readline = require('node:readline');
 const fs = require('node:fs');
 const path = require('node:path');
+const { createApp } = require('../src/app');
+const { createLabBookingTools } = require('./lab-booking-tools');
 
 // Paths to local data files.
 const lecturesPath = path.join(__dirname, 'lectures.json');
@@ -25,7 +27,7 @@ function toolResult(id, text, isError = false) {
 }
 
 // Decide how to respond to each incoming message.
-function handle(msg) {
+function handle(msg, labBookingTools) {
   if (msg.method === 'initialize') {
     return {
       jsonrpc: '2.0',
@@ -34,8 +36,8 @@ function handle(msg) {
         protocolVersion: msg.params.protocolVersion,
         capabilities: { tools: {} },
         serverInfo: {
-          name: 'lectures',
-          version: '0.1.0'
+          name: 'lab-booking',
+          version: '0.2.0'
         }
       }
     };
@@ -75,7 +77,8 @@ function handle(msg) {
               properties: {},
               required: []
             }
-          }
+          },
+          ...(labBookingTools?.definitions ?? [])
         ]
       }
     };
@@ -123,6 +126,16 @@ function handle(msg) {
       );
     }
 
+    if (labBookingTools) {
+      try {
+        const result = labBookingTools.call(name, args);
+        if (result) return toolResult(msg.id, result.text, result.isError);
+      } catch (error) {
+        console.error('MCP tool execution failed:', error.message);
+        return toolResult(msg.id, 'The tool could not complete the request.', true);
+      }
+    }
+
     return {
       jsonrpc: '2.0',
       id: msg.id,
@@ -149,24 +162,29 @@ function handle(msg) {
   return null;
 }
 
-// Read standard input one line at a time.
-const rl = readline.createInterface({
-  input: process.stdin,
-  crlfDelay: Infinity
-});
+if (require.main === module) {
+  const { services } = createApp();
+  const labBookingTools = createLabBookingTools({
+    ...services,
+    sessionToken: process.env.MCP_TOKEN
+  });
+  const rl = readline.createInterface({
+    input: process.stdin,
+    crlfDelay: Infinity
+  });
 
-rl.on('line', (line) => {
-  // Debug logs go to stderr, never stdout.
-  console.error('got:', line);
+  rl.on('line', (line) => {
+    try {
+      const msg = JSON.parse(line);
+      const reply = handle(msg, labBookingTools);
 
-  try {
-    const msg = JSON.parse(line);
-    const reply = handle(msg);
-
-    if (reply !== null) {
-      send(reply);
+      if (reply !== null) {
+        send(reply);
+      }
+    } catch (err) {
+      console.error('Error processing MCP message:', err.message);
     }
-  } catch (err) {
-    console.error('Error processing message:', err.message);
-  }
-});
+  });
+}
+
+module.exports = { handle };
