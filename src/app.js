@@ -6,19 +6,38 @@ const { createBookingRepository } = require('./data/bookings');
 const { createSessionRepository } = require('./data/sessions');
 const { createUserRepository } = require('./data/users');
 const { createAuthService } = require('./services/auth');
+const { createGoogleAuthService } = require('./services/google-auth');
+const { createGoogleOAuthClient } = require('./services/google-oauth-client');
+const { createAvailabilitySummaryService } = require('./services/availability-summary');
+const { createOAuthStateRepository } = require('./data/oauth-states');
 const { createLabService } = require('./services/labs');
 const { createAuthRouter, COOKIE_NAME } = require('./routes/auth');
 const { createLabRouter } = require('./routes/labs');
 
-function createApp({ db = createDatabase() } = {}) {
+function createApp({
+  db = createDatabase(),
+  googleClient,
+  summaryClient,
+  managerEmails = process.env.LAB_MANAGER_EMAILS ?? ''
+} = {}) {
   const app = express();
   const users = createUserRepository(db);
   const sessions = createSessionRepository(db);
   const authService = createAuthService({ users, sessions });
+  const googleAuthService = createGoogleAuthService({
+    users,
+    authService,
+    oauthStates: createOAuthStateRepository(db),
+    googleClient: googleClient ?? createGoogleOAuthClient()
+  });
   const labSlots = createLabSlotRepository(db);
   const bookings = createBookingRepository(db);
   const labService = createLabService(db, labSlots, bookings);
-  const { router: authRouter, cookieToken } = createAuthRouter(authService);
+  const summaryService = createAvailabilitySummaryService({
+    labService,
+    client: summaryClient ?? require('./services/gemini-client').createGeminiClient()
+  });
+  const { router: authRouter, cookieToken } = createAuthRouter(authService, googleAuthService);
   const publicDirectory = path.join(__dirname, '..', 'public');
 
   app.use(express.json({ limit: '16kb' }));
@@ -35,10 +54,23 @@ function createApp({ db = createDatabase() } = {}) {
     next();
   }
 
-  app.use('/api', createLabRouter({ labSlots, labService, requireUser }));
+  const allowedManagers = new Set(managerEmails
+    .split(',').map((email) => email.trim().toLowerCase()).filter(Boolean));
+  function isManager(user) {
+    return allowedManagers.has(user.email.toLowerCase());
+  }
+  function requireManager(req, res, next) {
+    if (!isManager(req.user)) {
+      res.status(403).json({ error: 'Lab manager access is required.' });
+      return;
+    }
+    next();
+  }
+
+  app.use('/api', createLabRouter({ labService, summaryService, requireUser, requireManager }));
 
   app.get('/api/me', requireUser, (req, res) => {
-    res.json({ user: req.user });
+    res.json({ user: req.user, isManager: isManager(req.user) });
   });
 
   app.get('/my-bookings', requireUser, (req, res) => {
@@ -60,7 +92,11 @@ function createApp({ db = createDatabase() } = {}) {
     res.status(500).json({ error: 'The request could not be completed.' });
   });
 
-  return { app, db };
+  return {
+    app,
+    db,
+    services: { authService, labService, summaryService, googleAuthService }
+  };
 }
 
 if (require.main === module) {

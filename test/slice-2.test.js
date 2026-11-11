@@ -42,7 +42,7 @@ async function signIn(origin, email, password) {
   return sessionCookie(res);
 }
 
-test('AC-2 a student reserves a free seat', async () => {
+test('AC-2 and AC-12 a student books a free seat and sees the lab and start time', async () => {
   await withServer(async ({ db, origin }) => {
     const users = createUserRepository(db);
     const pass = await bcrypt.hash('pass', 12);
@@ -57,13 +57,15 @@ test('AC-2 a student reserves a free seat', async () => {
     assert.equal(bookRes.status, 201);
     const bookData = await bookRes.json();
     assert.equal(bookData.labName, slot.labName);
+    assert.equal(bookData.startsAt, slot.startsAt);
 
     const dbSlot = db.prepare('SELECT reserved_seats FROM lab_slots WHERE id = ?').get(slot.id);
     assert.equal(dbSlot.reserved_seats, 1);
+    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM bookings WHERE slot_id = ? AND status = 'active'").get(slot.id).count, 1);
   });
 });
 
-test('AC-3 two students try to reserve the final seat', async () => {
+test('AC-3 and AC-13 two students try to reserve the final seat', async () => {
   await withServer(async ({ db, origin }) => {
     db.prepare('UPDATE lab_slots SET capacity = 1').run();
     const users = createUserRepository(db);
@@ -86,10 +88,11 @@ test('AC-3 two students try to reserve the final seat', async () => {
     const dbSlot = db.prepare('SELECT reserved_seats, capacity FROM lab_slots WHERE id = ?').get(slot.id);
     assert.equal(dbSlot.reserved_seats, 1);
     assert.equal(dbSlot.reserved_seats <= dbSlot.capacity, true);
+    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM bookings WHERE slot_id = ? AND status = 'active'").get(slot.id).count, 1);
   });
 });
 
-test('AC-4 a student tries to reserve the same slot twice', async () => {
+test('AC-4 and AC-14 a student tries to reserve the same slot twice', async () => {
   await withServer(async ({ db, origin }) => {
     const users = createUserRepository(db);
     const pass = await bcrypt.hash('pass', 12);
@@ -157,7 +160,7 @@ test('AC-7 a student sees only their own reservations', async () => {
   });
 });
 
-test('Failure case: Reject bookings for slots that have already started', async () => {
+test('AC-16 booking a slot that has already started leaves the database unchanged', async () => {
   await withServer(async ({ db, origin }) => {
     const pastDate = '2000-01-01T00:00:00.000Z';
     db.prepare('INSERT INTO lab_slots (lab_id, starts_at, capacity) VALUES (1, ?, 10)').run(pastDate);
@@ -171,6 +174,8 @@ test('Failure case: Reject bookings for slots that have already started', async 
     const res = await postJson(origin, '/api/bookings', { slotId: slot.id }, cookie);
     assert.equal(res.status, 422);
     assert.equal((await res.json()).error, 'Cannot book a slot that has already started.');
+    assert.equal(db.prepare('SELECT reserved_seats FROM lab_slots WHERE id = ?').get(slot.id).reserved_seats, 0);
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM bookings WHERE slot_id = ?').get(slot.id).count, 0);
   });
 });
 
@@ -193,26 +198,32 @@ test('Failure case: Reject cancellation of bookings for slots that have already 
   });
 });
 
-test('Failure case: Return HTTP 403 if a student tries to cancel another student\'s booking', async () => {
+test('AC-17 another student receives 403 and a signed-out request receives 401 without changing the booking', async () => {
   await withServer(async ({ db, origin }) => {
     const users = createUserRepository(db);
     const pass = await bcrypt.hash('pass', 12);
     users.create('s1@example.edu', pass);
     users.create('s2@example.edu', pass);
 
-    const userId1 = db.prepare('SELECT id FROM users WHERE email = "s1@example.edu"').get().id;
+    const userId1 = db.prepare('SELECT id FROM users WHERE email = ?').get('s1@example.edu').id;
     const c2 = await signIn(origin, 's2@example.edu', 'pass');
 
     const slot = db.prepare('SELECT id FROM lab_slots LIMIT 1').get();
+    db.prepare('UPDATE lab_slots SET reserved_seats = 1 WHERE id = ?').run(slot.id);
     const b1 = db.prepare('INSERT INTO bookings (user_id, slot_id) VALUES (?, ?)').run(userId1, slot.id).lastInsertRowid;
 
     const res = await postJson(origin, `/api/bookings/${b1}/cancel`, {}, c2);
     assert.equal(res.status, 403);
     assert.equal((await res.json()).error, 'You cannot cancel another student\'s booking.');
+
+    const signedOut = await postJson(origin, `/api/bookings/${b1}/cancel`, {});
+    assert.equal(signedOut.status, 401);
+    assert.equal(db.prepare('SELECT status FROM bookings WHERE id = ?').get(b1).status, 'active');
+    assert.equal(db.prepare('SELECT reserved_seats FROM lab_slots WHERE id = ?').get(slot.id).reserved_seats, 1);
   });
 });
 
-test('Failure case: Return HTTP 404 if the requested slot does not exist', async () => {
+test('AC-15 booking a slot that does not exist leaves the database unchanged', async () => {
   await withServer(async ({ db, origin }) => {
     const users = createUserRepository(db);
     const pass = await bcrypt.hash('pass', 12);
@@ -222,5 +233,24 @@ test('Failure case: Return HTTP 404 if the requested slot does not exist', async
     const res = await postJson(origin, '/api/bookings', { slotId: 99999 }, cookie);
     assert.equal(res.status, 404);
     assert.equal((await res.json()).error, 'The requested slot does not exist.');
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM bookings').get().count, 0);
+  });
+});
+
+test('AC-1 a student filters availability by lab and date', async () => {
+  await withServer(async ({ db, origin }) => {
+    const users = createUserRepository(db);
+    users.create('student@example.edu', await bcrypt.hash('pass', 4));
+    const cookie = await signIn(origin, 'student@example.edu', 'pass');
+    const query = new URLSearchParams({ lab: 'Computer Lab 1', date: '2030-05-01' });
+
+    const response = await fetch(`${origin}/api/lab-slots?${query}`, {
+      headers: { Cookie: cookie }
+    });
+    assert.equal(response.status, 200);
+    const { slots } = await response.json();
+    assert.equal(slots.length, 2);
+    assert.ok(slots.every((slot) => slot.labName === 'Computer Lab 1'
+      && slot.startsAt.startsWith('2030-05-01') && Number.isInteger(slot.availableSeats)));
   });
 });

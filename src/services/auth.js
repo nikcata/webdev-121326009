@@ -59,6 +59,10 @@ function createAuthService({ users, sessions, now = Date.now }) {
       return issueSession(user);
     },
 
+    issueSessionForUser(user) {
+      return issueSession(user);
+    },
+
     getUserForToken(token) {
       if (typeof token !== 'string' || token.length === 0) return null;
       return sessions.findUser(hashToken(token), now()) ?? null;

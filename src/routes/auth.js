@@ -1,5 +1,7 @@
 const express = require('express');
 const { AuthError } = require('../services/auth');
+const { GoogleAuthError } = require('../services/google-auth');
+const { GoogleOAuthError } = require('../services/google-oauth-client');
 
 const COOKIE_NAME = 'lab_session';
 
@@ -19,8 +21,15 @@ function cookieOptions() {
   ].join('; ');
 }
 
-function createAuthRouter(authService) {
+function createAuthRouter(authService, googleAuthService) {
   const router = express.Router();
+  const respondWithGoogleError = (error, res, next) => {
+    if (error instanceof GoogleAuthError || error instanceof GoogleOAuthError) {
+      res.status(error.status).send(error.message);
+      return;
+    }
+    next(error);
+  };
 
   router.post('/register', async (req, res, next) => {
     try {
@@ -53,6 +62,50 @@ function createAuthRouter(authService) {
         return;
       }
       next(error);
+    }
+  });
+
+  router.get('/google/start', (req, res, next) => {
+    try {
+      res.redirect(googleAuthService.beginLogin());
+    } catch (error) {
+      respondWithGoogleError(error, res, next);
+    }
+  });
+
+  router.get('/google/link/start', (req, res, next) => {
+    const user = authService.getUserForToken(cookieToken(req));
+    if (!user) {
+      res.status(401).send('Sign in before linking Google.');
+      return;
+    }
+    try {
+      res.redirect(googleAuthService.beginLink(user.id));
+    } catch (error) {
+      respondWithGoogleError(error, res, next);
+    }
+  });
+
+  router.get('/google/callback', async (req, res, next) => {
+    if (req.query.error) {
+      res.status(401).send('Google sign-in was not completed.');
+      return;
+    }
+    const currentUser = authService.getUserForToken(cookieToken(req));
+    try {
+      const result = await googleAuthService.complete({
+        code: req.query.code,
+        state: req.query.state,
+        currentUser
+      });
+      if (result.flow === 'login') {
+        res.setHeader('Set-Cookie', `${COOKIE_NAME}=${result.session.token}; ${cookieOptions()}`);
+        res.redirect('/?google=signed-in');
+      } else {
+        res.redirect('/?google=linked');
+      }
+    } catch (error) {
+      respondWithGoogleError(error, res, next);
     }
   });
 
