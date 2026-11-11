@@ -11,7 +11,7 @@ This project will let university students find available laboratory slots, reser
 - Install: `npm install`
 - Run: `npm start` (serves the app at `http://localhost:3000`)
 - Test: `npm test`
-- Coverage: 
+- Coverage:
 - MCP server: `npm run mcp`
 
 ## Conventions
@@ -31,7 +31,7 @@ that talks to the database directly is a second, unguarded way into your data: n
 
 ## The model feature
 <!-- Provider, env var, and the call site. -->
-- The provider is named in exactly one file: 
+- The Gemini provider client is named in exactly one file: `src/services/gemini-client.js`.
 - The key comes from an environment variable and is never committed or logged.
 - Every call has a timeout and a deterministic fallback, so the app still works when the provider is down or rate-limited.
 - The model's output is re-checked against real data before anything is saved or shown.
@@ -42,6 +42,7 @@ that talks to the database directly is a second, unguarded way into your data: n
 - Lives in `mcp-server/`, grew out of Exercise 1.
 - Every tool calls a service function; none touches the data layer or the database directly.
 - It carries a user, and enforces exactly the same authorization rules as the HTTP API.
+- Booking tools use `MCP_TOKEN` from the MCP server process environment; never put the token in tool arguments or logs.
 - Adding a tool means adding a row to the table in `SPEC.md` too.
 
 ## Tests and coverage
