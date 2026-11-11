@@ -14,6 +14,10 @@ By the end you hand in one working application: a backend and a frontend over a 
 
 The course setup page explains accounts, sign-in, free limits and what to do if something goes wrong.
 
+## Lab booking configuration
+
+Set `LAB_MANAGER_EMAILS` to a comma-separated allowlist of lab-manager email addresses in your Codespaces or hosting environment. Google OAuth uses `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`; configure the Google redirect URI as `${PUBLIC_BASE_URL}/api/auth/google/callback`. Availability summaries use `GEMINI_API_KEY` and `MODEL_NAME`. The summary sends only public lab/slot availability fields to Gemini; tests use a fake client and do not call the provider. Keep all credentials in environment secrets, not in this repository.
+
 ## What is already here
 
 | Path | What it is for |

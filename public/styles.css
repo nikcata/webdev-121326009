@@ -73,12 +73,25 @@ button,
 }
 
 button,
-.button-link {
+.button-link,
+.google-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: #fff;
   background: #214e9a;
   border-color: #214e9a;
   cursor: pointer;
   text-decoration: none;
+}
+
+.google-button {
+  min-height: 2.75rem;
+  margin-top: 0.75rem;
+  border: 1px solid #aeb9ca;
+  border-radius: 0.4rem;
+  padding: 0.6rem 0.8rem;
+  font: inherit;
 }
 
 button:disabled {
@@ -107,10 +120,25 @@ button:disabled {
 }
 
 .slot-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
   padding: 1rem;
   background: #fff;
   border: 1px solid #dce3ed;
   border-radius: 0.5rem;
+}
+
+.slot-list li button {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 36rem) {
+  .slot-list li {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 [hidden] {

@@ -24,14 +24,31 @@
           <button id="submit-auth" type="submit">Sign in</button>
         </form>
         <button id="toggle-auth" class="text-button" type="button">Create an account</button>
+        <a class="google-button" href="/api/auth/google/start">Continue with Google</a>
         <p id="auth-message" class="message" role="status" aria-live="polite"></p>
       </section>
 
       <section id="availability" hidden aria-labelledby="availability-title">
         <h1 id="availability-title">Available lab slots</h1>
         <p>Browse upcoming sessions and the number of seats available.</p>
+        <button id="summary-button" type="button">Summarize availability</button>
+        <p id="summary-message" class="message" role="status" aria-live="polite"></p>
         <p id="list-message" class="message" role="status" aria-live="polite"></p>
         <ul id="slot-list" class="slot-list"></ul>
+      </section>
+
+      <section id="manager-panel" class="panel" hidden aria-labelledby="manager-title">
+        <h2 id="manager-title">Create a lab slot</h2>
+        <form id="manager-form">
+          <label for="slot-lab">Lab name</label>
+          <input id="slot-lab" name="labName" maxlength="100" required>
+          <label for="slot-start">Start time</label>
+          <input id="slot-start" name="startsAt" type="datetime-local" required>
+          <label for="slot-capacity">Seat capacity</label>
+          <input id="slot-capacity" name="capacity" type="number" min="1" step="1" required>
+          <button id="create-slot-button" type="submit">Create slot</button>
+        </form>
+        <p id="manager-message" class="message" role="status" aria-live="polite"></p>
       </section>
     </main>
   </body>

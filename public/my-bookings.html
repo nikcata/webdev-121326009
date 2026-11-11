@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>My bookings · Lab booking</title>
     <link rel="stylesheet" href="/styles.css">
+    <script src="/my-bookings.js" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -14,7 +15,8 @@
     <main>
       <section class="panel">
         <h1>My bookings</h1>
-        <p>You do not have any bookings yet.</p>
+        <p id="bookings-message" class="message" role="status" aria-live="polite">Loading your bookings…</p>
+        <ul id="bookings-list" class="slot-list"></ul>
         <a class="button-link" href="/">Browse lab availability</a>
       </section>
     </main>
