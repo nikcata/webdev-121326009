@@ -37,12 +37,13 @@ async function login(origin, email) {
 test('AC-6 a manager submitting zero capacity receives validation and creates no slot', async () => {
   await withManagerServer(async ({ db, origin }) => {
     const cookie = await login(origin, 'manager@example.edu');
+    const labId = db.prepare('SELECT id FROM labs LIMIT 1').get().id;
     const before = db.prepare('SELECT COUNT(*) AS count FROM lab_slots').get().count;
     const response = await fetch(`${origin}/api/lab-slots`, {
       method: 'POST',
       headers: { Cookie: cookie, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        labName: 'New Lab',
+        labId,
         startsAt: '2035-01-01T10:00:00.000Z',
         capacity: 0
       })
@@ -55,17 +56,66 @@ test('AC-6 a manager submitting zero capacity receives validation and creates no
 });
 
 test('AC-6 a student cannot create a manager lab slot', async () => {
-  await withManagerServer(async ({ origin }) => {
+  await withManagerServer(async ({ db, origin }) => {
     const cookie = await login(origin, 'student@example.edu');
+    const labId = db.prepare('SELECT id FROM labs LIMIT 1').get().id;
     const response = await fetch(`${origin}/api/lab-slots`, {
       method: 'POST',
       headers: { Cookie: cookie, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        labName: 'New Lab',
+        labId,
         startsAt: '2035-01-01T10:00:00.000Z',
         capacity: 10
       })
     });
     assert.equal(response.status, 403);
+  });
+});
+
+test('AC-19 a manager adds a laboratory and creates a slot for it', async () => {
+  await withManagerServer(async ({ origin }) => {
+    const managerCookie = await login(origin, 'manager@example.edu');
+    const createLabResponse = await fetch(`${origin}/api/labs`, {
+      method: 'POST',
+      headers: { Cookie: managerCookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Research Lab' })
+    });
+
+    assert.equal(createLabResponse.status, 201);
+    const { lab } = await createLabResponse.json();
+    assert.equal(lab.name, 'Research Lab');
+
+    const duplicateResponse = await fetch(`${origin}/api/labs`, {
+      method: 'POST',
+      headers: { Cookie: managerCookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Research Lab' })
+    });
+    assert.equal(duplicateResponse.status, 409);
+
+    const studentCookie = await login(origin, 'student@example.edu');
+    const listResponse = await fetch(`${origin}/api/labs`, {
+      headers: { Cookie: studentCookie }
+    });
+    assert.equal(listResponse.status, 200);
+    assert.ok((await listResponse.json()).labs.some((item) => item.id === lab.id));
+
+    const studentCreateResponse = await fetch(`${origin}/api/labs`, {
+      method: 'POST',
+      headers: { Cookie: studentCookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Unauthorized Lab' })
+    });
+    assert.equal(studentCreateResponse.status, 403);
+
+    const slotResponse = await fetch(`${origin}/api/lab-slots`, {
+      method: 'POST',
+      headers: { Cookie: managerCookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        labId: lab.id,
+        startsAt: '2035-01-01T10:00:00.000Z',
+        capacity: 10
+      })
+    });
+    assert.equal(slotResponse.status, 201);
+    assert.equal((await slotResponse.json()).slot.labName, 'Research Lab');
   });
 });

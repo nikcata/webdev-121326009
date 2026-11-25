@@ -64,3 +64,24 @@ Manual status check: exercised real HTTP requests against an isolated in-memory 
 - Files removed: none.
 - Step 10 follow-up (after user approval): added the manager email allowlist and AC-6 slot validation, verified Google OAuth code/state flow for linking an existing account by matching verified email without implicit merge, and added a Gemini availability summary with timeout, fallback, current-slot ID validation, and fake-client tests. No dependency was added, `.env` was not edited, and no live Google/Gemini provider request was made.
 - Final Exercise 3 self-check: all 18/18 checks passed; `npm test` passed 27 tests and the MCP protocol checks passed 12/12.
+
+## 2026-11-25 · Exercise 4 readiness review
+- Goal: identify the remaining Exercise 4 hand-in items and remove OAuth credentials from the environment template.
+- Delegated: none.
+- Checkpoints: `node checks/ex4.mjs` reported 25/29 checks passed; `git ls-files` confirmed `.env` is not tracked.
+- Went wrong: the self-check flags the local `.env` file's presence even though it is ignored and untracked; the UI checklist still lacks verification evidence, and `course.json` has no live URL.
+- Changed by hand: replaced the Google OAuth values in `.env.example` with empty placeholders. No provider credentials or live deployment were tested in this review.
+
+## 2026-11-25 · Exercise 4 completion work
+- Goal: finish the code and documentation items that could be verified without deployment credentials or a browser.
+- Delegated: none.
+- Checkpoints: `npm test` passed 49 tests and 12 MCP checks; `npm run coverage` passed with 100% service coverage and 87.04% overall line coverage; `npm run build` passed. Playwright checked 380/768/1280px layouts and the keyboard booking flow; layout shift measured 0.0063. Captured 13 screenshots. `node checks/ex4.mjs` passed 34/34, including live health and page checks.
+- Went wrong: Chromium needed additional system libraries before it could launch; installed them after user approval. No app dependencies or production data were changed.
+- Changed by hand: updated the Gemini default, labeled AI output as a suggestion, added loading feedback and UI tokens/focus/touch sizing, corrected the `.env` self-check to check Git tracking, recorded the Render URL, and documented browser results and screenshots.
+
+## 2026-11-25 · Lab filters and lab management
+- Goal: add the requested laboratory/date filters and manager-only laboratory creation/listing.
+- Delegated: none.
+- Checkpoints: `npm test` passed 50 tests and 12 MCP checks; `npm run coverage` passed with 100% service coverage and 87.78% overall line coverage; `npm run build` passed; `node checks/ex4.mjs` passed 34/34.
+- Went wrong: the cached Chromium executable was unavailable in this session, so the new controls do not yet have refreshed screenshot evidence; API and service behavior are covered by tests.
+- Changed by hand: added availability filter controls, manager lab creation/listing, lab selection when creating slots, Postgres/SQLite data access and manager-protected routes; updated the spec and UI/readiness notes. Reused the existing `labs` table; no migration or dependency changes.

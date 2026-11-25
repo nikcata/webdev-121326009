@@ -37,6 +37,9 @@ test('Exercise 4 Postgres lab service covers its transaction branches', async ()
     }
   };
   const slots = {
+    listLabs: async () => [{ id: 1, name: 'Lab' }],
+    findLabById: async (id) => (id === 1 ? { id, name: 'Lab' } : null),
+    createLab: async (name) => ({ id: 2, name }),
     listUpcoming: async () => [
       { id: 1, lab_name: 'Lab', starts_at: '2030-01-01T10:00:00.000Z', available_seats: 2 }
     ],
@@ -60,6 +63,23 @@ test('Exercise 4 Postgres lab service covers its transaction branches', async ()
   };
   const service = createLabService(db, slots, bookings);
 
+  assert.deepEqual(await service.listLabs(), [{ id: 1, name: 'Lab' }]);
+  assert.deepEqual(await service.createLab({ name: ' New Lab ' }), {
+    success: true,
+    lab: { id: 2, name: 'New Lab' }
+  });
+  assert.deepEqual(await service.createLab({ name: '' }), {
+    success: false,
+    error: 'INVALID_LAB_NAME'
+  });
+  assert.deepEqual(await service.createLab({ name: 42 }), {
+    success: false,
+    error: 'INVALID_LAB_NAME'
+  });
+  assert.deepEqual(await service.createLab({ name: 'x'.repeat(101) }), {
+    success: false,
+    error: 'INVALID_LAB_NAME'
+  });
   assert.equal((await service.listAvailableSlots({ labName: 'Lab' })).length, 1);
   assert.equal((await service.listAvailableSlots({ labName: 'lab' })).length, 1);
   assert.equal((await service.listAvailableSlots({})).length, 1);
@@ -67,28 +87,42 @@ test('Exercise 4 Postgres lab service covers its transaction branches', async ()
   assert.equal((await service.listAvailableSlots({ date: '2031-01-01' })).length, 0);
   assert.equal((await service.listAvailableSlots({ labName: 'Other' })).length, 0);
   assert.equal((await service.createSlot({
-    labName: 'Lab',
+    labId: 1,
     startsAt: '2030-01-01T10:00:00.000Z',
     capacity: 2
   }, '2029-01-01T00:00:00.000Z')).success, true);
-  assert.deepEqual(await service.createSlot({ labName: '', startsAt: '2030-01-01T10:00:00.000Z', capacity: 2 }),
+  assert.deepEqual(await service.createSlot({ labId: 0, startsAt: '2030-01-01T10:00:00.000Z', capacity: 2 }),
     { success: false, error: 'INVALID_SLOT' });
-  assert.deepEqual(await service.createSlot({ labName: 42, startsAt: '2030-01-01T10:00:00.000Z', capacity: 2 }),
+  assert.deepEqual(await service.createSlot({ labId: '1', startsAt: '2030-01-01T10:00:00.000Z', capacity: 2 }),
     { success: false, error: 'INVALID_SLOT' });
-  assert.deepEqual(await service.createSlot({ labName: 'x'.repeat(101), startsAt: '2030-01-01T10:00:00.000Z', capacity: 2 }),
+  assert.deepEqual(await service.createSlot({ labId: 1, startsAt: 42, capacity: 2 }),
     { success: false, error: 'INVALID_SLOT' });
-  assert.deepEqual(await service.createSlot({ labName: 'Lab', startsAt: 42, capacity: 2 }),
-    { success: false, error: 'INVALID_SLOT' });
-  assert.deepEqual(await service.createSlot({ labName: 'Lab', startsAt: '2030-01-01T10:00:00.000Z', capacity: '2' }),
+  assert.deepEqual(await service.createSlot({ labId: 1, startsAt: '2030-01-01T10:00:00.000Z', capacity: '2' }),
     { success: false, error: 'INVALID_CAPACITY' });
-  assert.deepEqual(await service.createSlot({ labName: 'Lab', startsAt: '2030-01-01T10:00:00.000Z', capacity: 0 }),
+  assert.deepEqual(await service.createSlot({ labId: 1, startsAt: '2030-01-01T10:00:00.000Z', capacity: 0 }),
     { success: false, error: 'INVALID_CAPACITY' });
-  assert.deepEqual(await service.createSlot({ labName: 'Lab', startsAt: 'invalid', capacity: 2 }),
+  assert.deepEqual(await service.createSlot({ labId: 1, startsAt: 'invalid', capacity: 2 }),
     { success: false, error: 'INVALID_SLOT' });
-  assert.deepEqual(await service.createSlot({ labName: 'Lab', startsAt: '2030-01-01T10:00:00Z', capacity: 2 }),
+  assert.deepEqual(await service.createSlot({ labId: 1, startsAt: '2030-01-01T10:00:00Z', capacity: 2 }),
     { success: false, error: 'INVALID_SLOT' });
-  assert.deepEqual(await service.createSlot({ labName: 'Lab', startsAt: '2028-01-01T10:00:00.000Z', capacity: 2 }, '2029-01-01T00:00:00.000Z'),
+  assert.deepEqual(await service.createSlot({ labId: 1, startsAt: '2028-01-01T10:00:00.000Z', capacity: 2 }, '2029-01-01T00:00:00.000Z'),
     { success: false, error: 'INVALID_SLOT' });
+  slots.findLabById = async () => null;
+  assert.deepEqual(await service.createSlot({ labId: 2, startsAt: '2030-01-01T10:00:00.000Z', capacity: 2 }),
+    { success: false, error: 'LAB_NOT_FOUND' });
+  slots.findLabById = async (id) => ({ id, name: 'Lab' });
+  slots.createLab = async () => {
+    throw Object.assign(new Error('duplicate key'), { code: '23505' });
+  };
+  assert.deepEqual(await service.createLab({ name: 'Lab' }), {
+    success: false,
+    error: 'DUPLICATE_LAB'
+  });
+  slots.createLab = async () => {
+    throw new Error('database unavailable');
+  };
+  await assert.rejects(service.createLab({ name: 'New Lab' }), /database unavailable/);
+  slots.createLab = async (name) => ({ id: 2, name });
   assert.equal((await service.bookSlot(1, 1, '2029-01-01T00:00:00.000Z')).success, true);
   assert.equal((await service.cancelBooking(1, 1, '2029-01-01T00:00:00.000Z')).success, true);
   assert.equal((await service.listMyBookings(1)).length, 1);
@@ -156,7 +190,7 @@ test('Exercise 4 Postgres lab service covers its transaction branches', async ()
   };
   const duplicateService = createLabService(duplicateDb, slots, bookings);
   assert.deepEqual(await duplicateService.createSlot({
-    labName: 'Lab',
+    labId: 1,
     startsAt: '2031-01-01T10:00:00.000Z',
     capacity: 2
   }, '2029-01-01T00:00:00.000Z'), { success: false, error: 'DUPLICATE_SLOT' });
@@ -171,7 +205,7 @@ test('Exercise 4 Postgres lab service covers its transaction branches', async ()
   };
   const unexpectedService = createLabService(unexpectedDb, slots, bookings);
   await assert.rejects(unexpectedService.createSlot({
-    labName: 'Lab',
+    labId: 1,
     startsAt: '2031-01-01T10:00:00.000Z',
     capacity: 2
   }, '2029-01-01T00:00:00.000Z'), /database unavailable/);
@@ -204,50 +238,79 @@ test('Exercise 4 lab service covers validation and cancellation branches', () =>
   try {
     const service = createTestService(db);
     const slot = db.prepare('SELECT id FROM lab_slots LIMIT 1').get();
+    const labId = db.prepare('SELECT lab_id FROM lab_slots WHERE id = ?').get(slot.id).lab_id;
+
+    assert.ok(service.listLabs().some((lab) => lab.id === labId && lab.name === 'Computer Lab 1'));
+    const newLab = service.createLab({ name: ' New Lab ' });
+    assert.deepEqual(newLab, {
+      success: true,
+      lab: { id: newLab.lab.id, name: 'New Lab' }
+    });
+    assert.deepEqual(service.createLab({ name: 'New Lab' }), {
+      success: false,
+      error: 'DUPLICATE_LAB'
+    });
+    assert.deepEqual(service.createLab({ name: '  ' }), {
+      success: false,
+      error: 'INVALID_LAB_NAME'
+    });
+    assert.deepEqual(service.createLab({ name: 42 }), {
+      success: false,
+      error: 'INVALID_LAB_NAME'
+    });
+    assert.deepEqual(service.createLab({ name: 'x'.repeat(101) }), {
+      success: false,
+      error: 'INVALID_LAB_NAME'
+    });
+    assert.equal(service.createSlot({
+      labId: newLab.lab.id,
+      startsAt: '2031-01-01T10:00:00.000Z',
+      capacity: 1
+    }, '2029-01-01T00:00:00.000Z').success, true);
 
     assert.equal(service.listAvailableSlots({ labName: 'Computer Lab 1', date: '2030-05-01' }).length, 2);
     assert.deepEqual(service.createSlot({
-      labName: '',
+      labId: 0,
       startsAt: '2030-05-01T09:00:00.000Z',
       capacity: 1
     }, '2029-01-01T00:00:00.000Z').error, 'INVALID_SLOT');
     assert.deepEqual(service.createSlot({
-      labName: 'Computer Lab 1',
+      labId,
       startsAt: '2030-05-01T09:00:00.000Z',
       capacity: 0
     }, '2029-01-01T00:00:00.000Z').error, 'INVALID_CAPACITY');
     assert.deepEqual(service.createSlot({
-      labName: 'Computer Lab 1',
+      labId,
       startsAt: '2030-05-01T09:00:00.000Z',
       capacity: 1
     }, '2029-01-01T00:00:00.000Z').error, 'DUPLICATE_SLOT');
     assert.deepEqual(service.createSlot({
-      labName: 'Past Lab',
+      labId,
       startsAt: '2020-01-01T09:00:00.000Z',
       capacity: 1
     }, '2029-01-01T00:00:00.000Z').error, 'INVALID_SLOT');
     assert.deepEqual(service.createSlot({
-      labName: 42,
+      labId: 'not-an-id',
       startsAt: '2031-01-01T09:00:00.000Z',
       capacity: 1
     }, '2029-01-01T00:00:00.000Z').error, 'INVALID_SLOT');
     assert.deepEqual(service.createSlot({
-      labName: 'Lab',
+      labId,
       startsAt: 42,
       capacity: 1
     }, '2029-01-01T00:00:00.000Z').error, 'INVALID_SLOT');
     assert.deepEqual(service.createSlot({
-      labName: 'x'.repeat(101),
+      labId: Number.MAX_SAFE_INTEGER,
       startsAt: '2031-01-01T09:00:00.000Z',
       capacity: 1
-    }, '2029-01-01T00:00:00.000Z').error, 'INVALID_SLOT');
+    }, '2029-01-01T00:00:00.000Z').error, 'LAB_NOT_FOUND');
     assert.deepEqual(service.createSlot({
-      labName: 'Lab',
+      labId,
       startsAt: '2031-02-30T09:00:00.000Z',
       capacity: 1
     }, '2029-01-01T00:00:00.000Z').error, 'INVALID_SLOT');
     assert.deepEqual(service.createSlot({
-      labName: 'Lab',
+      labId,
       startsAt: '2031-01-01T09:00:00Z',
       capacity: 1
     }, '2029-01-01T00:00:00.000Z').error, 'INVALID_SLOT');
@@ -298,8 +361,14 @@ test('Exercise 4 lab service covers database constraint and seat-release fallbac
     const realService = createLabService(db, slots, bookings);
 
     const slot = db.prepare('SELECT id FROM lab_slots LIMIT 1').get();
+    const failingLabService = createLabService(db, {
+      ...slots,
+      createLab: () => { throw new Error('database unavailable'); }
+    }, bookings);
+    assert.throws(() => failingLabService.createLab({ name: 'New Lab' }), /database unavailable/);
     const duplicateError = { code: 'SQLITE_CONSTRAINT_UNIQUE' };
     const throwingSlots = {
+      findLabById: () => ({ id: 1, name: 'Lab' }),
       findById: slots.findById,
       incrementReservedSeats: () => true,
       decrementReservedSeats: () => false,
@@ -308,7 +377,7 @@ test('Exercise 4 lab service covers database constraint and seat-release fallbac
     };
     const throwingService = createLabService(db, throwingSlots, bookings);
     assert.deepEqual(throwingService.createSlot({
-      labName: 'New Lab',
+      labId: 1,
       startsAt: '2031-01-01T10:00:00.000Z',
       capacity: 5
     }, '2029-01-01T00:00:00.000Z'), { success: false, error: 'DUPLICATE_SLOT' });
@@ -412,6 +481,7 @@ test('Exercise 4 lab service covers database constraint and seat-release fallbac
       { success: true });
 
     const unknownConstraintService = createLabService(db, {
+      findLabById: () => ({ id: 1, name: 'Lab' }),
       findById: slots.findById,
       incrementReservedSeats: () => true,
       decrementReservedSeats: () => true,
@@ -419,7 +489,7 @@ test('Exercise 4 lab service covers database constraint and seat-release fallbac
       listUpcoming: slots.listUpcoming
     }, bookings);
     assert.throws(() => unknownConstraintService.createSlot({
-      labName: 'New Lab',
+      labId: 1,
       startsAt: '2031-01-01T10:00:00.000Z',
       capacity: 5
     }, '2029-01-01T00:00:00.000Z'), /database unavailable/);

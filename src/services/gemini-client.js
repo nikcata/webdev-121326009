@@ -1,6 +1,6 @@
 function createGeminiClient({
   apiKey = process.env.GEMINI_API_KEY,
-  modelName = process.env.MODEL_NAME ?? 'gemini-2.5-flash',
+  modelName = process.env.MODEL_NAME ?? 'gemini-3.5-flash-lite',
   fetchImpl = fetch,
   timeoutMs = 5000
 } = {}) {

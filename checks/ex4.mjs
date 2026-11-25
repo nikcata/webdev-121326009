@@ -1,12 +1,12 @@
 // Exercise 4 self-check: is the project deployable and is the report honest?
 //   node checks/ex4.mjs                      structure only
 //   node checks/ex4.mjs https://your-app.url  also checks the live site
-import { answered, check, filled, json, manifestValue, read, report, section } from './lib.mjs';
+import { answered, check, filled, git, json, manifestValue, read, report, section } from './lib.mjs';
 
 check('a Dockerfile exists', read('Dockerfile') !== null, 'the image builds and runs your app');
 const env = read('.env.example');
 check('.env.example lists your variables', filled(env).length >= 2, 'every variable your app needs, with placeholder values');
-check('no .env is committed', read('.env') === null, 'real values never enter the repository');
+check('no .env is committed', git(['ls-files', '--', '.env']) === '', 'real values never enter the repository');
 
 const ci = read('.github/workflows/ci.yml');
 check('CI runs on every push', ci !== null && /on:\s*[\s\S]{0,40}push/.test(ci), 'the template ships a workflow that runs your tests');

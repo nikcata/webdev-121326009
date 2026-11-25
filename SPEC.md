@@ -25,7 +25,7 @@ Lab booking.
 <!-- Which model, which modality, and what it does for a user.
      Name three things or the check fails: the input it receives, the output it produces,
      and what happens when the model is slow, rate-limited or wrong. -->
-- Model: Gemini 2.5 Flash, called by a server-side model service.
+- Model: Gemini 3.5 Flash-Lite, called by a server-side model service.
 - Input: Lab names and non-personal details of upcoming slots; account and booking-owner data are never sent.
 - Output: A short availability summary with slot IDs, shown only when every ID still matches a bookable slot in the database.
 - When it fails: If the key is missing, the call times out or is rate-limited, or the output is invalid or stale, omit the summary and show the regular database-backed slot list.
@@ -50,7 +50,7 @@ Lab booking.
 
 ## UI
 <!-- Stack, and the three or more screens. The graded checklist lives in docs/UI.md. -->
-Responsive HTML, CSS, and vanilla JavaScript served by Express. Screens: sign-in/register, lab availability and filters, my bookings with cancellation, and manager slot creation.
+Responsive HTML, CSS, and vanilla JavaScript served by Express. Screens: sign-in/register, lab availability and filters, my bookings with cancellation, and manager lab and slot management.
 
 ## Architecture
 <!-- Exercise 3. One request traced through every layer, naming the file for each one,
@@ -59,7 +59,7 @@ When a student reserves a seat, the Reserve button and request handling in `publ
 
 On `/my-bookings`, `public/my-bookings.js` owns the rendered booking list and loading, empty, and error messages. It fetches `/api/my-bookings`; `src/routes/labs.js` passes the authenticated user ID to `labService.listMyBookings`, which reads through `src/data/bookings.js`. Its cancel button posts to `/api/bookings/:id/cancel`; the route calls `labService.cancelBooking`, which checks ownership and start time before the repositories update the booking and seat count. The browser reloads its list after success. The MCP entry point in `mcp-server/server.js` exposes the same behavior through `mcp-server/lab-booking-tools.js`; those tools resolve the caller's session and call `src/services/labs.js`, not SQL directly.
 
-For managers, `src/app.js` checks the authenticated email against `LAB_MANAGER_EMAILS` before `POST /api/lab-slots` reaches `labService.createSlot`; capacity and future-time validation stay in `src/services/labs.js`, while `src/data/lab-slots.js` writes the row. Google sign-in and linking enter through the routes in `src/routes/auth.js`, use the state and account-linking rules in `src/services/google-auth.js`, and persist OAuth state and the Google subject through `src/data/oauth-states.js` and `src/data/users.js`. The availability summary button in `public/app.js` calls `/api/lab-slots/summary`; `src/services/availability-summary.js` passes only public slot data to `src/services/gemini-client.js` and validates returned IDs against current bookable slots before returning a summary.
+For managers, `src/app.js` checks the authenticated email against `LAB_MANAGER_EMAILS` before `POST /api/labs` or `POST /api/lab-slots` reaches `labService.createLab` or `labService.createSlot`; validation stays in `src/services/labs.js`, while `src/data/lab-slots.js` writes the lab and slot rows. Students fetch the lab list for the availability filters from `GET /api/labs`. Google sign-in and linking enter through the routes in `src/routes/auth.js`, use the state and account-linking rules in `src/services/google-auth.js`, and persist OAuth state and the Google subject through `src/data/oauth-states.js` and `src/data/users.js`. The availability summary button in `public/app.js` calls `/api/lab-slots/summary`; `src/services/availability-summary.js` passes only public slot data to `src/services/gemini-client.js` and validates returned IDs against current bookable slots before returning a summary.
 
 One layering mismatch remains: `src/data/database.js` still creates the original users, sessions, labs, and lab-slot tables inline, while `migrations/001_bookings.sql` and `migrations/002_google_auth.sql` create booking and Google OAuth structures. I left the pre-existing schema in place to keep this slice focused on the new data-model changes rather than introduce migrations for unrelated existing tables.
 
@@ -82,6 +82,7 @@ One layering mismatch remains: `src/data/database.js` still creates the original
 - [AC-7] A student opens their bookings page and sees only their own reservations; bookings belonging to other students are not returned.
 - [AC-8] A student links Google sign-in to an existing account after verifying the same email, can then sign in either way, and still has one account record.
 - [AC-18] A visitor with a verified Google email not already used in the app can register and is signed in; an existing email is not automatically linked.
+- [AC-19] A manager creates a uniquely named lab, sees it in the lab list, and can create a slot for it; a student may list labs but cannot create one.
 
 ### Slice 1: sign-in and the lab availability list
 - [AC-9] A visitor registers with an unused email and valid password; the sign-in form is replaced by the lab availability list on the same page, and the database stores a salted password hash instead of the password.
@@ -118,6 +119,7 @@ One layering mismatch remains: `src/data/database.js` still creates the original
 | AC-16 | `test/slice-2.test.js`: AC-16 booking a slot that has already started leaves the database unchanged |
 | AC-17 | `test/slice-2.test.js`: AC-17 another student receives 403 and a signed-out request receives 401 without changing the booking; `test/lab-service.test.js`: AC-17 service refuses to cancel another student booking without changing either record |
 | AC-18 | `test/google-auth.test.js`: AC-18 a verified Google account can register; existing email addresses still require explicit linking |
+| AC-19 | `test/manager-slots.test.js`: AC-19 a manager adds a laboratory and creates a slot for it |
 
 ## Spec vs result
 <!-- After the agent builds the slice: which criteria passed, which it missed or reinterpreted, and what you changed in this spec because of it. -->
@@ -130,6 +132,7 @@ One layering mismatch remains: `src/data/database.js` still creates the original
 - The bookings screen now loads the student's upcoming active reservations, provides an empty state and readable request errors, and removes a cancelled reservation from the upcoming list.
 - The four listed booking MCP tools are implemented through the shared lab service; authenticated tools use the `MCP_TOKEN` session identity and enforce the HTTP ownership rules.
 - AC-6 passed: only allowlisted manager emails can create lab slots; capacity zero returns a validation error and inserts no slot.
+- AC-19 adds manager-only lab creation and student-visible lab listing. Slot creation now selects an existing lab; the existing `labs` table is reused, so no migration is needed.
 - AC-8 passed with a fake Google client: an existing student can link a verified matching Google account, then authenticate with either credential while retaining one database user. Unverified or mismatched email is refused; automatic account merging is not allowed.
 - The availability summary is called from a server-side Gemini client with a timeout. It sends only lab/slot availability fields, validates returned IDs against current bookable slots, and falls back to the regular database-backed list when unavailable or invalid. Tests use a fake model client.
 - Google OAuth requires configured client credentials and an authorized redirect URI. Live provider sign-in and Gemini calls were not exercised in tests.

@@ -1,6 +1,7 @@
 function createLabSlotRepository(db) {
-  const insertLab = db.prepare('INSERT INTO labs (name) VALUES (?) ON CONFLICT(name) DO NOTHING');
-  const findLabId = db.prepare('SELECT id FROM labs WHERE name = ?');
+  const listLabs = db.prepare('SELECT id, name FROM labs ORDER BY name');
+  const findLabById = db.prepare('SELECT id, name FROM labs WHERE id = ?');
+  const insertLab = db.prepare('INSERT INTO labs (name) VALUES (?)');
   const insertSlot = db.prepare(`
     INSERT INTO lab_slots (lab_id, starts_at, capacity)
     VALUES (?, ?, ?)
@@ -46,22 +47,30 @@ function createLabSlotRepository(db) {
     SET reserved_seats = reserved_seats - 1
     WHERE id = ? AND reserved_seats > 0
   `);
-  const createSlot = db.transaction((labName, startsAt, capacity) => {
-    insertLab.run(labName);
-    const lab = findLabId.get(labName);
-    const result = insertSlot.run(lab.id, startsAt, capacity);
+  const createSlot = db.transaction((labId, startsAt, capacity) => {
+    const result = insertSlot.run(labId, startsAt, capacity);
     return findCreatedSlot.get(result.lastInsertRowid);
   }).immediate;
 
   return {
+    listLabs() {
+      return listLabs.all();
+    },
+    findLabById(id) {
+      return findLabById.get(id) ?? null;
+    },
+    createLab(name) {
+      const result = insertLab.run(name);
+      return { id: result.lastInsertRowid, name };
+    },
     listUpcoming(now) {
       return listUpcoming.all(now);
     },
     findById(id) {
       return findById.get(id);
     },
-    create(labName, startsAt, capacity) {
-      return createSlot(labName, startsAt, capacity);
+    create(labId, startsAt, capacity) {
+      return createSlot(labId, startsAt, capacity);
     },
     incrementReservedSeats(id) {
       return incrementReservedSeats.run(id).changes > 0;

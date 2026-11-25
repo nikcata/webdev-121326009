@@ -26,8 +26,14 @@ test('Postgres repositories use database and transaction queries for app data', 
       return { rows: [{ ...user, google_sub: 'google-new' }], rowCount };
     }
     if (sql.includes('INSERT INTO bookings')) return { rows: [{ id: booking.id }], rowCount };
+    if (sql.includes('INSERT INTO labs')) return { rows: [{ id: 4, name: 'Computer Lab' }], rowCount };
+    if (sql.includes('SELECT id, name FROM labs ORDER BY name')) {
+      return { rows: [{ id: 4, name: 'Computer Lab' }], rowCount };
+    }
+    if (sql.includes('SELECT id, name FROM labs WHERE id')) {
+      return { rows: [{ id: 4, name: 'Computer Lab' }], rowCount };
+    }
     if (sql.includes('INSERT INTO lab_slots')) return { rows: [{ id: slot.id }], rowCount };
-    if (sql.includes('SELECT id FROM labs')) return { rows: [{ id: 4 }], rowCount };
     if (sql.includes('SELECT state, user_id, flow, expires_at')) return { rows: [oauthState], rowCount };
     if (sql.includes('SELECT lab_slots.id')) return { rows: [slot], rowCount };
     if (sql.includes('SELECT bookings.id')) return { rows: [booking], rowCount };
@@ -67,9 +73,12 @@ test('Postgres repositories use database and transaction queries for app data', 
   assert.deepEqual(await states.consume(oauthState.state, 1000), oauthState);
 
   const slots = createPostgresLabSlotRepository(db);
+  assert.deepEqual(await slots.listLabs(), [{ id: 4, name: 'Computer Lab' }]);
+  assert.deepEqual(await slots.findLabById(4, client), { id: 4, name: 'Computer Lab' });
+  assert.deepEqual(await slots.createLab('Computer Lab'), { id: 4, name: 'Computer Lab' });
   assert.deepEqual(await slots.listUpcoming('2029-01-01T00:00:00.000Z'), [slot]);
   assert.deepEqual(await slots.findById(slot.id, client), slot);
-  assert.deepEqual(await slots.create(slot.lab_name, slot.starts_at, slot.capacity, client), slot);
+  assert.deepEqual(await slots.create(4, slot.starts_at, slot.capacity, client), slot);
   assert.equal(await slots.incrementReservedSeats(slot.id, client), true);
   assert.equal(await slots.decrementReservedSeats(slot.id, client), true);
   rowCount = 0;

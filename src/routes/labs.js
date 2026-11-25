@@ -3,6 +3,31 @@ const express = require('express');
 function createLabRouter({ labService, summaryService, requireUser, requireManager }) {
   const router = express.Router();
 
+  router.get('/labs', requireUser, async (req, res, next) => {
+    try {
+      res.json({ labs: await labService.listLabs() });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post('/labs', requireUser, requireManager, async (req, res, next) => {
+    try {
+      const result = await labService.createLab(req.body ?? {});
+      if (result.success) {
+        res.status(201).json({ lab: result.lab });
+        return;
+      }
+      if (result.error === 'DUPLICATE_LAB') {
+        res.status(409).json({ error: 'A lab with that name already exists.' });
+        return;
+      }
+      res.status(400).json({ error: 'Enter a lab name no longer than 100 characters.' });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.get('/lab-slots', requireUser, async (req, res, next) => {
     const { lab, date } = req.query;
     const parsedDate = typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)
@@ -19,10 +44,10 @@ function createLabRouter({ labService, summaryService, requireUser, requireManag
       const slots = await labService.listAvailableSlots({ labName: lab, date });
       res.json({
         slots: slots.map((slot) => ({
-        id: slot.id,
-        labName: slot.lab_name,
-        startsAt: slot.starts_at,
-        availableSeats: slot.available_seats
+          id: slot.id,
+          labName: slot.lab_name,
+          startsAt: slot.starts_at,
+          availableSeats: slot.available_seats
         }))
       });
     } catch (error) {
@@ -41,25 +66,29 @@ function createLabRouter({ labService, summaryService, requireUser, requireManag
   router.post('/lab-slots', requireUser, requireManager, async (req, res, next) => {
     try {
       const result = await labService.createSlot(req.body ?? {});
-    if (result.success) {
-      res.status(201).json({
-        slot: {
-          id: result.slot.id,
-          labName: result.slot.lab_name,
-          startsAt: result.slot.starts_at,
-          availableSeats: result.slot.available_seats
-        }
-      });
-      return;
-    }
-    if (result.error === 'DUPLICATE_SLOT') {
-      res.status(409).json({ error: 'A slot already exists for that lab and start time.' });
-      return;
-    }
+      if (result.success) {
+        res.status(201).json({
+          slot: {
+            id: result.slot.id,
+            labName: result.slot.lab_name,
+            startsAt: result.slot.starts_at,
+            availableSeats: result.slot.available_seats
+          }
+        });
+        return;
+      }
+      if (result.error === 'DUPLICATE_SLOT') {
+        res.status(409).json({ error: 'A slot already exists for that lab and start time.' });
+        return;
+      }
+      if (result.error === 'LAB_NOT_FOUND') {
+        res.status(404).json({ error: 'Choose an existing lab.' });
+        return;
+      }
       res.status(400).json({
-      error: result.error === 'INVALID_CAPACITY'
-        ? 'Capacity must be a positive whole number.'
-        : 'Enter a lab name and a valid future start time.'
+        error: result.error === 'INVALID_CAPACITY'
+          ? 'Capacity must be a positive whole number.'
+          : 'Choose a lab and enter a valid future start time.'
       });
     } catch (error) {
       next(error);

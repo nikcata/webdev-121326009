@@ -80,6 +80,18 @@ function createPostgresOAuthStateRepository(db) {
 
 function createPostgresLabSlotRepository(db) {
   return {
+    async listLabs() {
+      const result = await query(db, 'SELECT id, name FROM labs ORDER BY name');
+      return result.rows;
+    },
+    async findLabById(id, client) {
+      const result = await query(db, 'SELECT id, name FROM labs WHERE id = $1', [id], client);
+      return result.rows[0] ?? null;
+    },
+    async createLab(name) {
+      const result = await query(db, 'INSERT INTO labs (name) VALUES ($1) RETURNING id, name', [name]);
+      return result.rows[0];
+    },
     async listUpcoming(now, client) {
       const result = await query(db, `
         SELECT lab_slots.id, labs.name AS lab_name, lab_slots.starts_at,
@@ -100,13 +112,11 @@ function createPostgresLabSlotRepository(db) {
       `, [id], client);
       return result.rows[0] ?? null;
     },
-    async create(labName, startsAt, capacity, client) {
-      await query(db, 'INSERT INTO labs (name) VALUES ($1) ON CONFLICT (name) DO NOTHING', [labName], client);
-      const lab = await query(db, 'SELECT id FROM labs WHERE name = $1', [labName], client);
+    async create(labId, startsAt, capacity, client) {
       const insert = await query(db, `
         INSERT INTO lab_slots (lab_id, starts_at, capacity)
         VALUES ($1, $2, $3) RETURNING id
-      `, [lab.rows[0].id, startsAt, capacity], client);
+      `, [labId, startsAt, capacity], client);
       const result = await query(db, `
         SELECT lab_slots.id, labs.name AS lab_name, lab_slots.starts_at,
           (lab_slots.capacity - lab_slots.reserved_seats) AS available_seats

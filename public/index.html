@@ -33,22 +33,46 @@
         <p>Browse upcoming sessions and the number of seats available.</p>
         <button id="summary-button" type="button">Summarize availability</button>
         <p id="summary-message" class="message" role="status" aria-live="polite"></p>
+        <form id="availability-filters" class="filters">
+          <label for="lab-filter">Laboratory
+            <select id="lab-filter" name="lab">
+              <option value="">All laboratories</option>
+            </select>
+          </label>
+          <label for="date-filter">Date
+            <input id="date-filter" name="date" type="date">
+          </label>
+          <button type="submit">Apply filters</button>
+          <button id="clear-filters" type="button">Clear filters</button>
+        </form>
         <p id="list-message" class="message" role="status" aria-live="polite"></p>
         <ul id="slot-list" class="slot-list"></ul>
       </section>
 
       <section id="manager-panel" class="panel" hidden aria-labelledby="manager-title">
-        <h2 id="manager-title">Create a lab slot</h2>
-        <form id="manager-form">
-          <label for="slot-lab">Lab name</label>
-          <input id="slot-lab" name="labName" maxlength="100" required>
+        <h2 id="manager-title">Manage laboratories and slots</h2>
+        <h3>Add a laboratory</h3>
+        <form id="manager-lab-form">
+          <label for="new-lab-name">Laboratory name</label>
+          <input id="new-lab-name" name="name" maxlength="100" required>
+          <button id="add-lab-button" type="submit">Add laboratory</button>
+        </form>
+        <p id="manager-lab-message" class="message" role="status" aria-live="polite"></p>
+        <ul id="manager-lab-list" class="lab-list"></ul>
+
+        <h3>Create a lab slot</h3>
+        <form id="manager-slot-form">
+          <label for="slot-lab">Laboratory</label>
+          <select id="slot-lab" name="labId" required>
+            <option value="">Select a laboratory</option>
+          </select>
           <label for="slot-start">Start time</label>
           <input id="slot-start" name="startsAt" type="datetime-local" required>
           <label for="slot-capacity">Seat capacity</label>
           <input id="slot-capacity" name="capacity" type="number" min="1" step="1" required>
           <button id="create-slot-button" type="submit">Create slot</button>
         </form>
-        <p id="manager-message" class="message" role="status" aria-live="polite"></p>
+        <p id="manager-slot-message" class="message" role="status" aria-live="polite"></p>
       </section>
     </main>
   </body>

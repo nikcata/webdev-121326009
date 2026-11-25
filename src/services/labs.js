@@ -1,6 +1,23 @@
 function createLabService(db, labSlots, bookings) {
   if (db.engine === 'postgres') {
     return {
+      async listLabs() {
+        return labSlots.listLabs();
+      },
+      async createLab({ name }) {
+        const normalizedName = typeof name === 'string' ? name.trim() : '';
+        if (!normalizedName || normalizedName.length > 100) {
+          return { success: false, error: 'INVALID_LAB_NAME' };
+        }
+        try {
+          return { success: true, lab: await labSlots.createLab(normalizedName) };
+        } catch (error) {
+          if (error.code === '23505') {
+            return { success: false, error: 'DUPLICATE_LAB' };
+          }
+          throw error;
+        }
+      },
       async listAvailableSlots({ labName, date } = {}, now = new Date().toISOString()) {
         const slots = await labSlots.listUpcoming(now);
         return slots.filter((slot) =>
@@ -8,22 +25,26 @@ function createLabService(db, labSlots, bookings) {
           && (!date || slot.starts_at.startsWith(date))
         );
       },
-      async createSlot({ labName, startsAt, capacity }, now = new Date().toISOString()) {
-        const normalizedName = typeof labName === 'string' ? labName.trim() : '';
+      async createSlot({ labId, startsAt, capacity }, now = new Date().toISOString()) {
         const starts = typeof startsAt === 'string' ? new Date(startsAt) : null;
         if (!Number.isSafeInteger(capacity) || capacity < 1) {
           return { success: false, error: 'INVALID_CAPACITY' };
         }
-        if (!normalizedName || normalizedName.length > 100
+        if (!Number.isSafeInteger(labId) || labId < 1
           || !starts || Number.isNaN(starts.getTime()) || starts.toISOString() !== startsAt
           || startsAt <= now) {
           return { success: false, error: 'INVALID_SLOT' };
         }
         try {
-          return {
-            success: true,
-            slot: await db.withTransaction((client) => labSlots.create(normalizedName, startsAt, capacity, client))
-          };
+          return await db.withTransaction(async (client) => {
+            if (!await labSlots.findLabById(labId, client)) {
+              return { success: false, error: 'LAB_NOT_FOUND' };
+            }
+            return {
+              success: true,
+              slot: await labSlots.create(labId, startsAt, capacity, client)
+            };
+          });
         } catch (error) {
           if (error.code === '23505') {
             return { success: false, error: 'DUPLICATE_SLOT' };
@@ -133,6 +154,25 @@ function createLabService(db, labSlots, bookings) {
   }).immediate;
 
   return {
+    listLabs() {
+      return labSlots.listLabs();
+    },
+
+    createLab({ name }) {
+      const normalizedName = typeof name === 'string' ? name.trim() : '';
+      if (!normalizedName || normalizedName.length > 100) {
+        return { success: false, error: 'INVALID_LAB_NAME' };
+      }
+      try {
+        return { success: true, lab: labSlots.createLab(normalizedName) };
+      } catch (error) {
+        if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+          return { success: false, error: 'DUPLICATE_LAB' };
+        }
+        throw error;
+      }
+    },
+
     listAvailableSlots({ labName, date } = {}, now = new Date().toISOString()) {
       return labSlots.listUpcoming(now).filter((slot) =>
         (!labName || slot.lab_name.toLowerCase() === labName.toLowerCase())
@@ -140,19 +180,21 @@ function createLabService(db, labSlots, bookings) {
       );
     },
 
-    createSlot({ labName, startsAt, capacity }, now = new Date().toISOString()) {
-      const normalizedName = typeof labName === 'string' ? labName.trim() : '';
+    createSlot({ labId, startsAt, capacity }, now = new Date().toISOString()) {
       const starts = typeof startsAt === 'string' ? new Date(startsAt) : null;
       if (!Number.isSafeInteger(capacity) || capacity < 1) {
         return { success: false, error: 'INVALID_CAPACITY' };
       }
-      if (!normalizedName || normalizedName.length > 100
+      if (!Number.isSafeInteger(labId) || labId < 1
         || !starts || Number.isNaN(starts.getTime()) || starts.toISOString() !== startsAt
         || startsAt <= now) {
         return { success: false, error: 'INVALID_SLOT' };
       }
+      if (!labSlots.findLabById(labId)) {
+        return { success: false, error: 'LAB_NOT_FOUND' };
+      }
       try {
-        return { success: true, slot: labSlots.create(normalizedName, startsAt, capacity) };
+        return { success: true, slot: labSlots.create(labId, startsAt, capacity) };
       } catch (error) {
         if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
           return { success: false, error: 'DUPLICATE_SLOT' };
