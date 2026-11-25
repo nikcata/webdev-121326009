@@ -47,6 +47,20 @@ function createAuthService({ users, sessions, now = Date.now }) {
       return issueSession(user);
     },
 
+    async registerWithGoogle(email, subject) {
+      const normalizedEmail = normalizeEmail(email);
+      if (typeof subject !== 'string' || subject.length === 0) {
+        throw new AuthError(400, 'A verified Google account is required.');
+      }
+
+      const passwordHash = await bcrypt.hash(randomBytes(32).toString('base64url'), 12);
+      const user = await users.createWithGoogle(normalizedEmail, passwordHash, subject);
+      if (!user) {
+        throw new AuthError(409, 'An account with that email already exists.');
+      }
+      return issueSession(user);
+    },
+
     async login(email, password) {
       const normalizedEmail = normalizeEmail(email);
       const user = await users.findByEmail(normalizedEmail);

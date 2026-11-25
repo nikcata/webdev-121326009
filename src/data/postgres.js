@@ -28,6 +28,15 @@ function createPostgresUserRepository(db) {
         RETURNING id, email, password_hash, google_sub
       `, [email, passwordHash]);
       return result.rows[0] ?? null;
+    },
+    async createWithGoogle(email, passwordHash, subject) {
+      const result = await query(db, `
+        INSERT INTO users (email, password_hash, google_sub)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (email) DO NOTHING
+        RETURNING id, email, password_hash, google_sub
+      `, [email, passwordHash, subject]);
+      return result.rows[0] ?? null;
     }
   };
 }

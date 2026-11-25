@@ -34,6 +34,7 @@ Lab booking.
 <!-- Local sign-in plus at least one provider. Say how an account signing in both ways stays one account. -->
 - Local: Students register and sign in with email and password; passwords are stored as bcrypt hashes.
 - Provider: Google sign-in uses the server-side OAuth authorization-code flow.
+- New accounts: a verified Google email can create a new account and sign the student in. If the email already belongs to an account, require local sign-in and explicit Google linking; never auto-link by email alone.
 - Linking: A signed-in student may link Google only after authenticating both accounts and confirming the same verified email; never merge accounts based only on an unverified email.
 
 ## MCP tools
@@ -80,6 +81,7 @@ One layering mismatch remains: `src/data/database.js` still creates the original
 - [AC-6] A lab manager submits a slot with capacity zero, sees a validation message, and no slot is added to `lab_slots`.
 - [AC-7] A student opens their bookings page and sees only their own reservations; bookings belonging to other students are not returned.
 - [AC-8] A student links Google sign-in to an existing account after verifying the same email, can then sign in either way, and still has one account record.
+- [AC-18] A visitor with a verified Google email not already used in the app can register and is signed in; an existing email is not automatically linked.
 
 ### Slice 1: sign-in and the lab availability list
 - [AC-9] A visitor registers with an unused email and valid password; the sign-in form is replaced by the lab availability list on the same page, and the database stores a salted password hash instead of the password.
@@ -115,6 +117,7 @@ One layering mismatch remains: `src/data/database.js` still creates the original
 | AC-15 | `test/slice-2.test.js`: AC-15 booking a slot that does not exist leaves the database unchanged |
 | AC-16 | `test/slice-2.test.js`: AC-16 booking a slot that has already started leaves the database unchanged |
 | AC-17 | `test/slice-2.test.js`: AC-17 another student receives 403 and a signed-out request receives 401 without changing the booking; `test/lab-service.test.js`: AC-17 service refuses to cancel another student booking without changing either record |
+| AC-18 | `test/google-auth.test.js`: AC-18 a verified Google account can register; existing email addresses still require explicit linking |
 
 ## Spec vs result
 <!-- After the agent builds the slice: which criteria passed, which it missed or reinterpreted, and what you changed in this spec because of it. -->

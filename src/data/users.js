@@ -7,6 +7,11 @@ function createUserRepository(db) {
     VALUES (@email, @passwordHash)
     ON CONFLICT(email) DO NOTHING
   `);
+  const insertWithGoogle = db.prepare(`
+    INSERT INTO users (email, password_hash, google_sub)
+    VALUES (?, ?, ?)
+    ON CONFLICT(email) DO NOTHING
+  `);
   const findById = db.prepare('SELECT id, email, password_hash, google_sub FROM users WHERE id = ?');
   const findByGoogleSub = db.prepare('SELECT id, email, password_hash, google_sub FROM users WHERE google_sub = ?');
   const linkGoogle = db.prepare(`
@@ -29,6 +34,11 @@ function createUserRepository(db) {
     },
     create(email, passwordHash) {
       const result = insert.run({ email, passwordHash });
+      if (result.changes === 0) return null;
+      return findById.get(result.lastInsertRowid);
+    },
+    createWithGoogle(email, passwordHash, subject) {
+      const result = insertWithGoogle.run(email, passwordHash, subject);
       if (result.changes === 0) return null;
       return findById.get(result.lastInsertRowid);
     }

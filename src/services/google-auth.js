@@ -1,4 +1,5 @@
 const { randomBytes } = require('node:crypto');
+const { AuthError } = require('./auth');
 const { GoogleOAuthError } = require('./google-oauth-client');
 
 const STATE_TTL_MS = 10 * 60 * 1000;
@@ -68,10 +69,28 @@ function createGoogleAuthService({ users, authService, oauthStates, googleClient
       }
 
       const user = await users.findByGoogleSub(profile.subject);
-      if (!user || user.email.toLowerCase() !== normalizedEmail) {
-        throw new GoogleOAuthError(401, 'This Google account is not linked. Sign in and link it first.');
+      if (user) {
+        if (user.email.toLowerCase() !== normalizedEmail) {
+          throw new GoogleOAuthError(401, 'This Google account is linked to a different email.');
+        }
+        return { flow: 'login', session: await authService.issueSessionForUser(user), user };
       }
-      return { flow: 'login', session: await authService.issueSessionForUser(user), user };
+
+      try {
+        const session = await authService.registerWithGoogle(normalizedEmail, profile.subject);
+        return { flow: 'login', session, user: session.user };
+      } catch (error) {
+        if (error instanceof AuthError && error.status === 409) {
+          throw new GoogleOAuthError(
+            409,
+            'An account with this email already exists. Sign in first and link Google.'
+          );
+        }
+        if (error.code === 'SQLITE_CONSTRAINT_UNIQUE' || error.code === '23505') {
+          throw new GoogleOAuthError(409, 'This Google account is already linked to another student.');
+        }
+        throw error;
+      }
     }
   };
 }

@@ -58,6 +58,39 @@ test('Exercise 4 auth login handles non-string passwords for an existing user', 
   await assert.rejects(auth.login('student@example.edu', 42), AuthError);
 });
 
+test('Exercise 4 auth service creates sessions for verified Google registrations', async () => {
+  let inserted;
+  const user = { id: 2, email: 'student@example.edu', google_sub: 'google-sub' };
+  const auth = createAuthService({
+    users: {
+      async createWithGoogle(email, passwordHash, subject) {
+        inserted = { email, passwordHash, subject };
+        return user;
+      }
+    },
+    sessions: {
+      async removeExpired() {},
+      async create() {}
+    },
+    now: () => 1000
+  });
+  const session = await auth.registerWithGoogle(' Student@Example.edu ', 'google-sub');
+  assert.deepEqual(inserted.email, 'student@example.edu');
+  assert.equal(inserted.subject, 'google-sub');
+  assert.match(inserted.passwordHash, /^\$2/);
+  assert.equal(session.user.id, user.id);
+
+  await assert.rejects(auth.registerWithGoogle('invalid-email', 'google-sub'), AuthError);
+  await assert.rejects(auth.registerWithGoogle('student@example.edu', ''), AuthError);
+
+  const conflictAuth = createAuthService({
+    users: { async createWithGoogle() { return null; } },
+    sessions: {}
+  });
+  await assert.rejects(conflictAuth.registerWithGoogle('student@example.edu', 'google-sub'),
+    (error) => error instanceof AuthError && error.status === 409);
+});
+
 test('Exercise 4 OAuth client covers configuration and provider responses', async () => {
   const unconfigured = createGoogleOAuthClient({
     clientId: '',
@@ -224,8 +257,44 @@ test('Exercise 4 Google auth covers linking and login branches', async () => {
     user
   });
 
-  await assert.rejects(createGoogleAuthService({
+  const signupSession = { token: 'new-token', user: { id: 2, email: 'student@example.edu' } };
+  const signupGoogle = createGoogleAuthService({
     users: { findByGoogleSub: () => null },
+    authService: { registerWithGoogle: async () => signupSession },
+    oauthStates: { consume: () => loginState },
+    googleClient: {
+      async getVerifiedProfile() {
+        return { subject: 'google-1', email: 'student@example.edu', emailVerified: true };
+      }
+    },
+    now
+  });
+  assert.deepEqual(await signupGoogle.complete({ code: 'code', state: 'login-state' }), {
+    flow: 'login',
+    session: signupSession,
+    user: signupSession.user
+  });
+
+  const existingEmailGoogle = createGoogleAuthService({
+    users: { findByGoogleSub: () => null },
+    authService: {
+      async registerWithGoogle() {
+        throw new AuthError(409, 'duplicate email');
+      }
+    },
+    oauthStates: { consume: () => loginState },
+    googleClient: {
+      async getVerifiedProfile() {
+        return { subject: 'google-1', email: 'student@example.edu', emailVerified: true };
+      }
+    },
+    now
+  });
+  await assert.rejects(existingEmailGoogle.complete({ code: 'code', state: 'login-state' }),
+    (error) => error instanceof GoogleOAuthError && error.status === 409);
+
+  const mismatchedLinkedGoogle = createGoogleAuthService({
+    users: { findByGoogleSub: () => ({ id: 2, email: 'other@example.edu' }) },
     authService: {},
     oauthStates: { consume: () => loginState },
     googleClient: {
@@ -234,7 +303,44 @@ test('Exercise 4 Google auth covers linking and login branches', async () => {
       }
     },
     now
-  }).complete({ code: 'code', state: 'login-state' }), GoogleOAuthError);
+  });
+  await assert.rejects(mismatchedLinkedGoogle.complete({ code: 'code', state: 'login-state' }),
+    (error) => error instanceof GoogleOAuthError && error.status === 401);
+
+  for (const code of ['SQLITE_CONSTRAINT_UNIQUE', '23505']) {
+    const duplicateGoogle = createGoogleAuthService({
+      users: { findByGoogleSub: () => null },
+      authService: {
+        async registerWithGoogle() {
+          throw Object.assign(new Error('duplicate subject'), { code });
+        }
+      },
+      oauthStates: { consume: () => loginState },
+      googleClient: {
+        async getVerifiedProfile() {
+          return { subject: 'google-1', email: 'student@example.edu', emailVerified: true };
+        }
+      },
+      now
+    });
+    await assert.rejects(duplicateGoogle.complete({ code: 'code', state: 'login-state' }),
+      (error) => error instanceof GoogleOAuthError && error.status === 409);
+  }
+
+  const unexpectedGoogleError = new Error('registration failed');
+  const failedSignupGoogle = createGoogleAuthService({
+    users: { findByGoogleSub: () => null },
+    authService: { async registerWithGoogle() { throw unexpectedGoogleError; } },
+    oauthStates: { consume: () => loginState },
+    googleClient: {
+      async getVerifiedProfile() {
+        return { subject: 'google-1', email: 'student@example.edu', emailVerified: true };
+      }
+    },
+    now
+  });
+  await assert.rejects(failedSignupGoogle.complete({ code: 'code', state: 'login-state' }),
+    (error) => error === unexpectedGoogleError);
 });
 
 test('Exercise 4 Google auth covers verification and conflicting-link branches', async () => {

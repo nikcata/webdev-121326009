@@ -58,6 +58,63 @@ test('AC-8 a student links verified Google sign-in and can sign in either way wi
   }
 });
 
+test('AC-18 a verified Google account can register; existing email addresses still require explicit linking', async () => {
+  const db = createDatabase(':memory:');
+  let profile = {
+    subject: 'google-new-user',
+    email: 'new-student@example.edu',
+    emailVerified: true
+  };
+  const { app } = createApp({ db, googleClient: fakeGoogleClient(() => profile) });
+  const users = createUserRepository(db);
+  const server = app.listen(0);
+  await new Promise((resolve) => server.once('listening', resolve));
+  const origin = `http://127.0.0.1:${server.address().port}`;
+
+  try {
+    const start = await fetch(`${origin}/api/auth/google/start`, { redirect: 'manual' });
+    const state = new URL(start.headers.get('location')).searchParams.get('state');
+    const callback = await fetch(
+      `${origin}/api/auth/google/callback?${new URLSearchParams({ code: 'signup-code', state })}`,
+      { redirect: 'manual' }
+    );
+    assert.equal(callback.status, 302);
+    assert.equal(new URL(callback.headers.get('location'), origin).searchParams.get('google'), 'signed-in');
+
+    const sessionCookie = callback.headers.get('set-cookie').split(';', 1)[0];
+    const currentUser = await fetch(`${origin}/api/me`, { headers: { Cookie: sessionCookie } });
+    assert.equal(currentUser.status, 200);
+    assert.equal((await currentUser.json()).user.email, 'new-student@example.edu');
+    assert.equal(db.prepare('SELECT google_sub FROM users WHERE email = ?')
+      .get('new-student@example.edu').google_sub, 'google-new-user');
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM users').get().count, 1);
+
+    users.create('existing@example.edu', await bcrypt.hash('local-password', 4));
+    profile = {
+      subject: 'google-existing-email',
+      email: 'existing@example.edu',
+      emailVerified: true
+    };
+    const existingStart = await fetch(`${origin}/api/auth/google/start`, { redirect: 'manual' });
+    const existingState = new URL(existingStart.headers.get('location')).searchParams.get('state');
+    const existingCallback = await fetch(
+      `${origin}/api/auth/google/callback?${new URLSearchParams({
+        code: 'existing-code',
+        state: existingState
+      })}`,
+      { redirect: 'manual' }
+    );
+    assert.equal(existingCallback.status, 409);
+    assert.match(await existingCallback.text(), /sign in first and link Google/i);
+    assert.equal(db.prepare('SELECT google_sub FROM users WHERE email = ?')
+      .get('existing@example.edu').google_sub, null);
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM users').get().count, 2);
+  } finally {
+    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    db.close();
+  }
+});
+
 test('AC-8 Google linking refuses an unverified or mismatched email without linking an account', async () => {
   const db = createDatabase(':memory:');
   let profile = {

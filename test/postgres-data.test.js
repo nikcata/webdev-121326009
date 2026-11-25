@@ -22,6 +22,9 @@ test('Postgres repositories use database and transaction queries for app data', 
   const oauthState = { state: 'state', user_id: 1, flow: 'link', expires_at: 5000 };
   let rowCount = 1;
   const query = async (sql) => {
+    if (sql.includes('INSERT INTO users (email, password_hash, google_sub)')) {
+      return { rows: [{ ...user, google_sub: 'google-new' }], rowCount };
+    }
     if (sql.includes('INSERT INTO bookings')) return { rows: [{ id: booking.id }], rowCount };
     if (sql.includes('INSERT INTO lab_slots')) return { rows: [{ id: slot.id }], rowCount };
     if (sql.includes('SELECT id FROM labs')) return { rows: [{ id: 4 }], rowCount };
@@ -50,6 +53,8 @@ test('Postgres repositories use database and transaction queries for app data', 
   assert.equal(await users.linkGoogle('google-2', user.id), false);
   rowCount = 1;
   assert.deepEqual(await users.create(user.email, user.password_hash), user);
+  assert.deepEqual(await users.createWithGoogle(user.email, user.password_hash, 'google-new'),
+    { ...user, google_sub: 'google-new' });
 
   const sessions = createPostgresSessionRepository(db);
   await sessions.create('hash', user.id, 5000);
