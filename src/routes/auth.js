@@ -1,6 +1,5 @@
 const express = require('express');
 const { AuthError } = require('../services/auth');
-const { GoogleAuthError } = require('../services/google-auth');
 const { GoogleOAuthError } = require('../services/google-oauth-client');
 
 const COOKIE_NAME = 'lab_session';
@@ -24,7 +23,7 @@ function cookieOptions() {
 function createAuthRouter(authService, googleAuthService) {
   const router = express.Router();
   const respondWithGoogleError = (error, res, next) => {
-    if (error instanceof GoogleAuthError || error instanceof GoogleOAuthError) {
+    if (error instanceof GoogleOAuthError) {
       res.status(error.status).send(error.message);
       return;
     }
@@ -65,22 +64,22 @@ function createAuthRouter(authService, googleAuthService) {
     }
   });
 
-  router.get('/google/start', (req, res, next) => {
+  router.get('/google/start', async (req, res, next) => {
     try {
-      res.redirect(googleAuthService.beginLogin());
+      res.redirect(await googleAuthService.beginLogin());
     } catch (error) {
       respondWithGoogleError(error, res, next);
     }
   });
 
-  router.get('/google/link/start', (req, res, next) => {
-    const user = authService.getUserForToken(cookieToken(req));
+  router.get('/google/link/start', async (req, res, next) => {
+    const user = await authService.getUserForToken(cookieToken(req));
     if (!user) {
       res.status(401).send('Sign in before linking Google.');
       return;
     }
     try {
-      res.redirect(googleAuthService.beginLink(user.id));
+      res.redirect(await googleAuthService.beginLink(user.id));
     } catch (error) {
       respondWithGoogleError(error, res, next);
     }
@@ -91,7 +90,7 @@ function createAuthRouter(authService, googleAuthService) {
       res.status(401).send('Google sign-in was not completed.');
       return;
     }
-    const currentUser = authService.getUserForToken(cookieToken(req));
+    const currentUser = await authService.getUserForToken(cookieToken(req));
     try {
       const result = await googleAuthService.complete({
         code: req.query.code,
@@ -109,8 +108,8 @@ function createAuthRouter(authService, googleAuthService) {
     }
   });
 
-  router.post('/logout', (req, res) => {
-    authService.revokeToken(cookieToken(req));
+  router.post('/logout', async (req, res) => {
+    await authService.revokeToken(cookieToken(req));
     res.setHeader(
       'Set-Cookie',
       `${COOKIE_NAME}=; ${cookieOptions()}; Max-Age=0`

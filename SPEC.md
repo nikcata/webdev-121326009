@@ -18,7 +18,7 @@ Lab booking.
 - No attendance tracking or no-show penalties after a booking is made.
 
 ## Constraints
-- The application uses Node.js 22, Express, SQLite, and a plain HTML, CSS, and JavaScript web UI.
+- The application uses Node.js 22, Express, Postgres in production with SQLite for local tests, and a plain HTML, CSS, and JavaScript web UI.
 - Passwords are stored only as salted hashes, never as readable text.
 
 ## The model feature
@@ -61,6 +61,12 @@ On `/my-bookings`, `public/my-bookings.js` owns the rendered booking list and lo
 For managers, `src/app.js` checks the authenticated email against `LAB_MANAGER_EMAILS` before `POST /api/lab-slots` reaches `labService.createSlot`; capacity and future-time validation stay in `src/services/labs.js`, while `src/data/lab-slots.js` writes the row. Google sign-in and linking enter through the routes in `src/routes/auth.js`, use the state and account-linking rules in `src/services/google-auth.js`, and persist OAuth state and the Google subject through `src/data/oauth-states.js` and `src/data/users.js`. The availability summary button in `public/app.js` calls `/api/lab-slots/summary`; `src/services/availability-summary.js` passes only public slot data to `src/services/gemini-client.js` and validates returned IDs against current bookable slots before returning a summary.
 
 One layering mismatch remains: `src/data/database.js` still creates the original users, sessions, labs, and lab-slot tables inline, while `migrations/001_bookings.sql` and `migrations/002_google_auth.sql` create booking and Google OAuth structures. I left the pre-existing schema in place to keep this slice focused on the new data-model changes rather than introduce migrations for unrelated existing tables.
+
+| Screen | Rendered | Why | While the data is on its way |
+|---|---|---|---|
+| Sign in and availability | In the browser | Static HTML plus `/api/auth/me` and `/api/lab-slots` allow the same page to switch between signed-out and signed-in states without navigation. | The sign-in form is static; the availability screen shows its loading or error state while slot requests are pending. |
+| My bookings | In the browser | The bookings page is a separate HTML shell that fetches and refreshes the user's list after cancel actions. | It shows a loading state, then the user's list or an empty/error state. |
+| Manager slot creation | In the browser | The existing page submits a JSON request and updates the availability UI without a full page reload. | The submit control is disabled or visibly busy while the request is in progress, followed by success or a readable validation message. |
 
 ## Acceptance criteria
 <!-- Every criterion carries an id. A test proves it by naming that id in its title, for example

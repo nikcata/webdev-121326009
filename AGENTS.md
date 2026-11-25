@@ -11,7 +11,8 @@ This project will let university students find available laboratory slots, reser
 - Install: `npm install`
 - Run: `npm start` (serves the app at `http://localhost:3000`)
 - Test: `npm test`
-- Coverage:
+- Coverage: `npm run coverage`
+- Postgres migration: `npm run migrate`
 - MCP server: `npm run mcp`
 
 ## Conventions

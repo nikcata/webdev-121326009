@@ -5,7 +5,8 @@ function createAvailabilitySummaryService({ labService, client, logger = console
 
   return {
     async summarize() {
-      const bookableSlots = labService.listAvailableSlots()
+      const initialSlots = await labService.listAvailableSlots();
+      const bookableSlots = initialSlots
         .filter((slot) => slot.available_seats > 0)
         .map(({ id, lab_name, starts_at, available_seats }) => ({
           id,
@@ -24,8 +25,9 @@ function createAvailabilitySummaryService({ labService, client, logger = console
       }
 
       const slotsById = new Map(bookableSlots.map((slot) => [slot.id, slot]));
+      const latestSlots = await labService.listAvailableSlots();
       const currentBookableIds = new Set(
-        labService.listAvailableSlots()
+        latestSlots
           .filter((slot) => slot.available_seats > 0)
           .map((slot) => slot.id)
       );

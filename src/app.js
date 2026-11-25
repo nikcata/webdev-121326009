@@ -13,6 +13,8 @@ const { createOAuthStateRepository } = require('./data/oauth-states');
 const { createLabService } = require('./services/labs');
 const { createAuthRouter, COOKIE_NAME } = require('./routes/auth');
 const { createLabRouter } = require('./routes/labs');
+const { validateRequiredEnvironment } = require('./config');
+const postgres = require('./data/postgres');
 
 function createApp({
   db = createDatabase(),
@@ -21,17 +23,28 @@ function createApp({
   managerEmails = process.env.LAB_MANAGER_EMAILS ?? ''
 } = {}) {
   const app = express();
-  const users = createUserRepository(db);
-  const sessions = createSessionRepository(db);
+  const isPostgres = db.engine === 'postgres';
+  const users = isPostgres
+    ? postgres.createPostgresUserRepository(db)
+    : createUserRepository(db);
+  const sessions = isPostgres
+    ? postgres.createPostgresSessionRepository(db)
+    : createSessionRepository(db);
   const authService = createAuthService({ users, sessions });
   const googleAuthService = createGoogleAuthService({
     users,
     authService,
-    oauthStates: createOAuthStateRepository(db),
+    oauthStates: isPostgres
+      ? postgres.createPostgresOAuthStateRepository(db)
+      : createOAuthStateRepository(db),
     googleClient: googleClient ?? createGoogleOAuthClient()
   });
-  const labSlots = createLabSlotRepository(db);
-  const bookings = createBookingRepository(db);
+  const labSlots = isPostgres
+    ? postgres.createPostgresLabSlotRepository(db)
+    : createLabSlotRepository(db);
+  const bookings = isPostgres
+    ? postgres.createPostgresBookingRepository(db)
+    : createBookingRepository(db);
   const labService = createLabService(db, labSlots, bookings);
   const summaryService = createAvailabilitySummaryService({
     labService,
@@ -43,9 +56,9 @@ function createApp({
   app.use(express.json({ limit: '16kb' }));
   app.use('/api/auth', authRouter);
 
-  function requireUser(req, res, next) {
+  async function requireUser(req, res, next) {
     const token = cookieToken(req);
-    const user = authService.getUserForToken(token);
+    const user = await authService.getUserForToken(token);
     if (!user) {
       res.status(401).json({ error: 'Sign in to continue.' });
       return;
@@ -73,11 +86,28 @@ function createApp({
     res.json({ user: req.user, isManager: isManager(req.user) });
   });
 
+  app.get('/health', async (req, res) => {
+    try {
+      if (db.engine === 'postgres') {
+        await db.health();
+      } else {
+        db.prepare('SELECT 1').get();
+      }
+      res.status(200).json({ status: 'ok', db: 'ok' });
+    } catch {
+      res.status(503).json({ status: 'error', db: 'down' });
+    }
+  });
+
   app.get('/my-bookings', requireUser, (req, res) => {
     res.sendFile(path.join(publicDirectory, 'my-bookings.html'));
   });
 
   app.use(express.static(publicDirectory));
+
+  app.use((req, res) => {
+    res.status(404).json({ error: 'Not found' });
+  });
 
   app.use((error, req, res, next) => {
     if (res.headersSent) {
@@ -100,10 +130,20 @@ function createApp({
 }
 
 if (require.main === module) {
-  const { app } = createApp();
-  const port = Number(process.env.PORT ?? 3000);
-  app.listen(port, () => {
-    console.log(`Lab booking app listening on port ${port}`);
+  validateRequiredEnvironment();
+  const { app, db } = createApp();
+  (async () => {
+    const port = Number(process.env.PORT ?? 3000);
+    if (db.ready) await db.ready();
+    app.listen(port, () => {
+      console.log(`Lab booking app listening on port ${port}`);
+    });
+  })().catch((error) => {
+    console.error('Could not start the app:', error.message);
+    if (db.close) db.close().catch((closeError) => {
+      console.error('Could not close the database pool:', closeError.message);
+    });
+    process.exit(1);
   });
 }
 

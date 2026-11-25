@@ -254,3 +254,27 @@ test('AC-1 a student filters availability by lab and date', async () => {
       && slot.startsAt.startsWith('2030-05-01') && Number.isInteger(slot.availableSeats)));
   });
 });
+
+test('Exercise 4 health and unknown routes return stable responses', async () => {
+  await withServer(async ({ origin }) => {
+    const health = await fetch(`${origin}/health`);
+    assert.equal(health.status, 200);
+    assert.deepEqual(await health.json(), { status: 'ok', db: 'ok' });
+
+    const missing = await fetch(`${origin}/no-such-page`);
+    assert.equal(missing.status, 404);
+    assert.deepEqual(await missing.json(), { error: 'Not found' });
+  });
+});
+
+test('Exercise 4 malformed JSON returns 400 without a stack trace', async () => {
+  await withServer(async ({ origin }) => {
+    const response = await fetch(`${origin}/api/bookings`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{"slotId":'
+    });
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), { error: 'Request body must be valid JSON.' });
+  });
+});

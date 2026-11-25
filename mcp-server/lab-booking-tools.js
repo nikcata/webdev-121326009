@@ -52,23 +52,24 @@ function createLabBookingTools({ authService, labService, sessionToken }) {
     return { text, isError: true };
   }
 
-  function authenticatedUser() {
+  async function authenticatedUser() {
     return authService.getUserForToken(sessionToken);
   }
 
-  function requireUser() {
-    const user = authenticatedUser();
+  async function requireUser() {
+    const user = await authenticatedUser();
     return user ?? null;
   }
 
-  function call(name, args) {
+  async function call(name, args) {
     if (name === 'list_lab_slots') {
       const { labName, date } = args;
       if ((labName !== undefined && (typeof labName !== 'string' || labName.length > 100))
         || !isValidDate(date)) {
         return failure('Provide a lab name up to 100 characters and a valid YYYY-MM-DD date.');
       }
-      const slots = labService.listAvailableSlots({ labName, date }).map((slot) => ({
+      const availableSlots = await labService.listAvailableSlots({ labName, date });
+      const slots = availableSlots.map((slot) => ({
         id: slot.id,
         labName: slot.lab_name,
         startsAt: slot.starts_at,
@@ -81,10 +82,10 @@ function createLabBookingTools({ authService, labService, sessionToken }) {
       if (!Number.isSafeInteger(args.slotId) || args.slotId < 1) {
         return failure('slotId must be a positive integer.');
       }
-      const user = requireUser();
+      const user = await requireUser();
       if (!user) return failure('Sign in to book a lab slot.');
 
-      const result = labService.bookSlot(user.id, args.slotId);
+      const result = await labService.bookSlot(user.id, args.slotId);
       if (!result.success) {
         const messages = {
           NOT_FOUND: 'The requested slot does not exist.',
@@ -105,9 +106,10 @@ function createLabBookingTools({ authService, labService, sessionToken }) {
     }
 
     if (name === 'list_my_bookings') {
-      const user = requireUser();
+      const user = await requireUser();
       if (!user) return failure('Sign in to view your bookings.');
-      const bookings = labService.listMyBookings(user.id).map((booking) => ({
+      const userBookings = await labService.listMyBookings(user.id);
+      const bookings = userBookings.map((booking) => ({
         id: booking.id,
         labName: booking.lab_name,
         startsAt: booking.starts_at,
@@ -120,10 +122,10 @@ function createLabBookingTools({ authService, labService, sessionToken }) {
       if (!Number.isSafeInteger(args.bookingId) || args.bookingId < 1) {
         return failure('bookingId must be a positive integer.');
       }
-      const user = requireUser();
+      const user = await requireUser();
       if (!user) return failure('Sign in to cancel a booking.');
 
-      const result = labService.cancelBooking(user.id, args.bookingId);
+      const result = await labService.cancelBooking(user.id, args.bookingId);
       if (!result.success) {
         const messages = {
           NOT_FOUND: 'Booking not found.',

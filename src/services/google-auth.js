@@ -6,8 +6,12 @@ const STATE_TTL_MS = 10 * 60 * 1000;
 function createGoogleAuthService({ users, authService, oauthStates, googleClient, now = Date.now }) {
   function begin(flow, userId = null) {
     const state = randomBytes(32).toString('base64url');
-    oauthStates.create(state, userId, flow, now() + STATE_TTL_MS);
-    return googleClient.authorizationUrl(state);
+    const created = oauthStates.create(state, userId, flow, now() + STATE_TTL_MS);
+    const url = googleClient.authorizationUrl(state);
+    if (created && typeof created.then === 'function') {
+      return created.then(() => url);
+    }
+    return url;
   }
 
   return {
@@ -23,7 +27,7 @@ function createGoogleAuthService({ users, authService, oauthStates, googleClient
       if (typeof code !== 'string' || !code || typeof state !== 'string' || !state) {
         throw new GoogleOAuthError(400, 'Google callback is missing its code or state.');
       }
-      const stateRecord = oauthStates.consume(state, now());
+      const stateRecord = await oauthStates.consume(state, now());
       if (!stateRecord) {
         throw new GoogleOAuthError(400, 'Google sign-in state is invalid or expired.');
       }
@@ -44,18 +48,18 @@ function createGoogleAuthService({ users, authService, oauthStates, googleClient
         if (normalizedEmail !== currentUser.email.toLowerCase()) {
           throw new GoogleOAuthError(409, 'The verified Google email must match your account email.');
         }
-        const linkedUser = users.findByGoogleSub(profile.subject);
+        const linkedUser = await users.findByGoogleSub(profile.subject);
         if (linkedUser && linkedUser.id !== currentUser.id) {
           throw new GoogleOAuthError(409, 'This Google account is already linked to another student.');
         }
-        const existingUser = users.findById(currentUser.id);
+        const existingUser = await users.findById(currentUser.id);
         if (existingUser.google_sub && existingUser.google_sub !== profile.subject) {
           throw new GoogleOAuthError(409, 'A different Google account is already linked.');
         }
         try {
-          users.linkGoogle(profile.subject, currentUser.id);
+          await users.linkGoogle(profile.subject, currentUser.id);
         } catch (error) {
-          if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+          if (error.code === 'SQLITE_CONSTRAINT_UNIQUE' || error.code === '23505') {
             throw new GoogleOAuthError(409, 'This Google account is already linked to another student.');
           }
           throw error;
@@ -63,7 +67,7 @@ function createGoogleAuthService({ users, authService, oauthStates, googleClient
         return { flow: 'link', user: currentUser };
       }
 
-      const user = users.findByGoogleSub(profile.subject);
+      const user = await users.findByGoogleSub(profile.subject);
       if (!user || user.email.toLowerCase() !== normalizedEmail) {
         throw new GoogleOAuthError(401, 'This Google account is not linked. Sign in and link it first.');
       }

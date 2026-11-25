@@ -27,7 +27,7 @@ function toolResult(id, text, isError = false) {
 }
 
 // Decide how to respond to each incoming message.
-function handle(msg, labBookingTools) {
+async function handle(msg, labBookingTools) {
   if (msg.method === 'initialize') {
     return {
       jsonrpc: '2.0',
@@ -128,7 +128,7 @@ function handle(msg, labBookingTools) {
 
     if (labBookingTools) {
       try {
-        const result = labBookingTools.call(name, args);
+        const result = await labBookingTools.call(name, args);
         if (result) return toolResult(msg.id, result.text, result.isError);
       } catch (error) {
         console.error('MCP tool execution failed:', error.message);
@@ -163,27 +163,36 @@ function handle(msg, labBookingTools) {
 }
 
 if (require.main === module) {
-  const { services } = createApp();
-  const labBookingTools = createLabBookingTools({
-    ...services,
-    sessionToken: process.env.MCP_TOKEN
-  });
-  const rl = readline.createInterface({
-    input: process.stdin,
-    crlfDelay: Infinity
-  });
+  const { db, services } = createApp();
+  (async () => {
+    if (db.ready) await db.ready();
+    const labBookingTools = createLabBookingTools({
+      ...services,
+      sessionToken: process.env.MCP_TOKEN
+    });
+    const rl = readline.createInterface({
+      input: process.stdin,
+      crlfDelay: Infinity
+    });
 
-  rl.on('line', (line) => {
-    try {
-      const msg = JSON.parse(line);
-      const reply = handle(msg, labBookingTools);
-
-      if (reply !== null) {
-        send(reply);
+    rl.on('line', (line) => {
+      try {
+        const msg = JSON.parse(line);
+        handle(msg, labBookingTools).then((reply) => {
+          if (reply !== null) send(reply);
+        }).catch((err) => {
+          console.error('Error processing MCP message:', err.message);
+        });
+      } catch (err) {
+        console.error('Error processing MCP message:', err.message);
       }
-    } catch (err) {
-      console.error('Error processing MCP message:', err.message);
-    }
+    });
+  })().catch((error) => {
+    console.error('Could not start the MCP server:', error.message);
+    if (db.close) db.close().catch((closeError) => {
+      console.error('Could not close the database pool:', closeError.message);
+    });
+    process.exit(1);
   });
 }
 

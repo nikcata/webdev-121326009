@@ -16,11 +16,11 @@ function callTool(tools, name, args = {}) {
   }, tools);
 }
 
-test('MCP lab-slot listing calls the shared service and supports filters', () => {
+test('MCP lab-slot listing calls the shared service and supports filters', async () => {
   const { db, services } = createApp({ db: createDatabase(':memory:') });
   try {
     const tools = createLabBookingTools({ ...services });
-    const reply = callTool(tools, 'list_lab_slots', {
+    const reply = await callTool(tools, 'list_lab_slots', {
       labName: 'Computer Lab 1',
       date: '2030-05-01'
     });
@@ -46,22 +46,22 @@ test('MCP booking tools require a valid session and enforce owner authorization 
     const ownerTools = createLabBookingTools({ ...services, sessionToken: owner.token });
     const otherTools = createLabBookingTools({ ...services, sessionToken: other.token });
     const signedOutTools = createLabBookingTools({ ...services });
-    const slot = services.labService.listAvailableSlots()[0];
+    const slot = (await services.labService.listAvailableSlots())[0];
 
-    assert.equal(callTool(signedOutTools, 'book_lab_slot', { slotId: slot.id }).result.isError, true);
+    assert.equal((await callTool(signedOutTools, 'book_lab_slot', { slotId: slot.id })).result.isError, true);
 
-    const booked = callTool(ownerTools, 'book_lab_slot', { slotId: slot.id });
+    const booked = await callTool(ownerTools, 'book_lab_slot', { slotId: slot.id });
     assert.equal(booked.result.isError, false);
     const bookingId = db.prepare('SELECT id FROM bookings WHERE status = ?').get('active').id;
 
-    const denied = callTool(otherTools, 'cancel_my_booking', { bookingId });
+    const denied = await callTool(otherTools, 'cancel_my_booking', { bookingId });
     assert.equal(denied.result.isError, true);
     assert.equal(db.prepare('SELECT status FROM bookings WHERE id = ?').get(bookingId).status, 'active');
     assert.equal(db.prepare('SELECT reserved_seats FROM lab_slots WHERE id = ?').get(slot.id).reserved_seats, 1);
 
-    const owned = callTool(ownerTools, 'list_my_bookings');
+    const owned = await callTool(ownerTools, 'list_my_bookings');
     assert.equal(JSON.parse(owned.result.content[0].text).bookings.length, 1);
-    const cancelled = callTool(ownerTools, 'cancel_my_booking', { bookingId });
+    const cancelled = await callTool(ownerTools, 'cancel_my_booking', { bookingId });
     assert.equal(cancelled.result.isError, false);
     assert.equal(db.prepare('SELECT reserved_seats FROM lab_slots WHERE id = ?').get(slot.id).reserved_seats, 0);
   } finally {

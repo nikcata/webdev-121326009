@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const { createApp } = require('../src/app');
 const { createDatabase } = require('../src/data/database');
 const { createUserRepository } = require('../src/data/users');
+const { GoogleOAuthError } = require('../src/services/google-oauth-client');
 
 function fakeGoogleClient(getProfile) {
   return {
@@ -138,6 +139,31 @@ test('AC-8 Google HTTP link callback and sign-in reuse the existing account', as
     assert.equal(currentUser.status, 200);
     assert.equal((await currentUser.json()).user.id, 1);
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM users').get().count, 1);
+  } finally {
+    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    db.close();
+  }
+});
+
+test('Google OAuth configuration errors return their status and message', async () => {
+  const db = createDatabase(':memory:');
+  const googleClient = {
+    authorizationUrl() {
+      throw new GoogleOAuthError(503, 'Google sign-in is not configured.');
+    },
+    async getVerifiedProfile() {
+      throw new Error('Not used in this test.');
+    }
+  };
+  const { app } = createApp({ db, googleClient });
+  const server = app.listen(0);
+  await new Promise((resolve) => server.once('listening', resolve));
+  const origin = `http://127.0.0.1:${server.address().port}`;
+
+  try {
+    const response = await fetch(`${origin}/api/auth/google/start`, { redirect: 'manual' });
+    assert.equal(response.status, 503);
+    assert.equal(await response.text(), 'Google sign-in is not configured.');
   } finally {
     await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     db.close();

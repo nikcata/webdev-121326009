@@ -56,3 +56,26 @@ test('Gemini availability summary falls back when the model gives no answer', as
   assert.equal(called, true);
   assert.equal(warnings.length, 1);
 });
+
+test('Exercise 4 availability summary covers empty data and malformed model output', async () => {
+  const warnings = [];
+  const emptyService = createAvailabilitySummaryService({
+    labService: { listAvailableSlots: () => [] },
+    client: { generateSummary: async () => ({ summary: 'unused', slotIds: [1] }) },
+    logger: { warn: (message) => warnings.push(message) }
+  });
+  assert.deepEqual(await emptyService.summarize(), { summary: null, slotIds: [], fallback: true });
+
+  for (const generated of [
+    null,
+    { summary: '', slotIds: [3] },
+    { summary: 'x'.repeat(501), slotIds: [3] },
+    { summary: 'text', slotIds: '3' },
+    { summary: 'text', slotIds: [] },
+    { summary: 'text', slotIds: [3, 3] },
+    { summary: 'text', slotIds: [999] }
+  ]) {
+    const { service } = makeService(async () => generated);
+    await service.summarize();
+  }
+});

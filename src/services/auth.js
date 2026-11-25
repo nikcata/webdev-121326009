@@ -29,8 +29,8 @@ function createAuthService({ users, sessions, now = Date.now }) {
   async function issueSession(user) {
     const token = randomBytes(32).toString('base64url');
     const expiresAt = now() + SESSION_TTL_MS;
-    sessions.removeExpired(now());
-    sessions.create(hashToken(token), user.id, expiresAt);
+    await sessions.removeExpired(now());
+    await sessions.create(hashToken(token), user.id, expiresAt);
     return { token, user: { id: user.id, email: user.email } };
   }
 
@@ -42,14 +42,14 @@ function createAuthService({ users, sessions, now = Date.now }) {
       }
 
       const passwordHash = await bcrypt.hash(password, 12);
-      const user = users.create(normalizedEmail, passwordHash);
+      const user = await users.create(normalizedEmail, passwordHash);
       if (!user) throw new AuthError(409, 'An account with that email already exists.');
       return issueSession(user);
     },
 
     async login(email, password) {
       const normalizedEmail = normalizeEmail(email);
-      const user = users.findByEmail(normalizedEmail);
+      const user = await users.findByEmail(normalizedEmail);
       const passwordMatches = typeof password === 'string' && user
         ? await bcrypt.compare(password, user.password_hash)
         : false;
@@ -65,12 +65,16 @@ function createAuthService({ users, sessions, now = Date.now }) {
 
     getUserForToken(token) {
       if (typeof token !== 'string' || token.length === 0) return null;
-      return sessions.findUser(hashToken(token), now()) ?? null;
+      const found = sessions.findUser(hashToken(token), now());
+      if (found && typeof found.then === 'function') {
+        return found.then((user) => user ?? null);
+      }
+      return found ?? null;
     },
 
     revokeToken(token) {
       if (typeof token === 'string' && token.length > 0) {
-        sessions.remove(hashToken(token));
+        return sessions.remove(hashToken(token));
       }
     }
   };
